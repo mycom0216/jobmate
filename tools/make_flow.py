@@ -2,6 +2,7 @@
  - flow-dev.png    : 개발 절차 순서도(기획 → 설계 → 분석·구현 → 테스트 → 유지보수, 결함 시 되돌아가는 반복 포함)
  - flow-system.png : 프로그램 처리 순서도(입력 → 마스킹 → 추천 → 점검 → 보완 → 저장, 분기·예외 포함)
 표준 순서도 기호: 둥근 사각형=시작/끝, 사각형=처리, 마름모=판단, 평행사변형=입출력.
+처리 순서도는 한 쪽(세로 약 21cm)에 담기도록 2열로 배치했습니다(가로:세로 약 1:1.2).
 """
 from pathlib import Path
 import matplotlib
@@ -16,15 +17,17 @@ BLUE, GREEN, RED, ORANGE, INK = "#2563eb", "#0f9d6b", "#d92d20", "#d97706", "#1c
 
 
 class Flow:
-    def __init__(self, w, h):
-        self.fig, self.ax = plt.subplots(figsize=(w, h))
-        self.ax.set_xlim(-1.2, w + 0.8); self.ax.set_ylim(-1.2, h); self.ax.axis("off")
+    def __init__(self, w, h, y0=-1.2):
+        self.fig, self.ax = plt.subplots(figsize=(w, h - y0 if y0 < 0 else h - y0))
+        self.ax.set_xlim(-1.2, w + 0.8)
+        self.ax.set_ylim(y0, h)
+        self.ax.axis("off")
         self.nodes = {}
 
     def node(self, key, x, y, text, kind="proc", w=3.4, h=0.8):
         a = self.ax
         if kind == "term":
-            a.add_patch(FancyBboxPatch((x - w / 2, y - h / 2), w, h, boxstyle="round,pad=0,rounding_size=0.4", fc=BLUE, ec=BLUE, zorder=3))
+            a.add_patch(FancyBboxPatch((x - w / 2, y - h / 2), w, h, boxstyle="round,pad=0,rounding_size=0.3", fc=BLUE, ec=BLUE, zorder=3))
             col = "white"
         elif kind == "dec":
             hw, hh = w / 2 + 0.2, h / 2 + 0.25
@@ -35,9 +38,9 @@ class Flow:
             a.add_patch(Polygon([(x - w / 2 + s, y + h / 2), (x + w / 2 + s, y + h / 2), (x + w / 2 - s, y - h / 2), (x - w / 2 - s, y - h / 2)], fc="#eaf1ff", ec=BLUE, lw=1.8, zorder=3))
             col = INK
         else:
-            a.add_patch(FancyBboxPatch((x - w / 2, y - h / 2), w, h, boxstyle="round,pad=0,rounding_size=0.08", fc="white", ec=GREEN if kind == "ok" else BLUE, lw=1.8, zorder=3))
+            a.add_patch(FancyBboxPatch((x - w / 2, y - h / 2), w, h, boxstyle="round,pad=0,rounding_size=0.08", fc="white", ec=BLUE, lw=1.8, zorder=3))
             col = INK
-        a.text(x, y, text, ha="center", va="center", fontsize=10.5, color=col, zorder=5, fontweight="bold" if kind == "term" else "normal")
+        a.text(x, y, text, ha="center", va="center", fontsize=11, color=col, zorder=5, fontweight="bold" if kind == "term" else "normal")
         hh = (h / 2 + 0.25) if kind == "dec" else h / 2
         hw = (w / 2 + 0.2) if kind == "dec" else w / 2
         self.nodes[key] = (x, y, hw, hh)
@@ -55,7 +58,7 @@ class Flow:
                              arrowprops=dict(arrowstyle="-|>" if last else "-", color=color, lw=1.5, shrinkA=0, shrinkB=0))
         if label:
             mx, my = pts[0][0] + (pts[1][0] - pts[0][0]) * 0.35, pts[0][1] + (pts[1][1] - pts[0][1]) * 0.35
-            self.ax.text(mx + 0.12, my + 0.08, label, fontsize=10, color=RED if "아니" in label else GREEN, fontweight="bold", zorder=6,
+            self.ax.text(mx + 0.12, my + 0.08, label, fontsize=10, color=RED if label.startswith("아니") else GREEN, fontweight="bold", zorder=6,
                          bbox=dict(fc="white", ec="none", pad=1))
 
     def save(self, name, title):
@@ -82,64 +85,43 @@ f.arrow("d1", "r", "p3", "r", "예 → 구현으로 수정", via=[(7.9, 4.7), (7
 f.arrow("p5", "b", "p6", "t"); f.arrow("p6", "b", "e", "t")
 f.save("flow-dev.png", "개발 절차 순서도 (기획 → 설계 → 분석·구현 → 테스트 → 유지보수)")
 
-# ── 2) 프로그램 처리 순서도 ──────────────────────────────────────────
-g = Flow(10.5, 21.5)
-g.node("s", 4, 20.4, "시작", "term", 2.2, 0.7)
-g.node("in", 4, 19.2, "이력서·자기소개서 입력", "io", 3.8)
-g.node("v", 4, 17.7, "입력 길이가\n80자 이상 12,000자 이하인가?", "dec", 3.0, 0.7)
-g.node("err", 8.6, 17.7, "오류 안내 후\n다시 입력", "proc", 2.6)
-g.node("m", 4, 16.0, "개인정보 마스킹\n(전화·이메일·주민·카드번호)", "proc", 4.2)
-g.node("a", 4, 14.8, "문서 분석\n역량·성과 수치·상투 표현·STAR·구성 추출", "proc", 5.4)
-g.node("r", 4, 13.5, "직무 추천: RAG 검색 + 역량 사전 + 행동어\n→ 적합도 Top 3, 근거, 신뢰도", "proc", 4.8)
-g.node("c", 4, 12.0, "신뢰도가 낮은가?", "dec", 2.4, 0.6)
-g.node("note", 8.6, 12.0, "직접 선택하도록\n안내 표시", "proc", 2.6)
-g.node("sel", 4, 10.6, "점검할 직무 선택", "io", 3.4)
-g.node("rv", 4, 9.4, "8항목 점검(100점)\n문제 문장 인용 + 조언 + RAG 근거 가이드", "proc", 4.8)
-g.node("n", 4, 8.0, "고칠 문장이\n있는가?", "dec", 2.2, 0.6)
-g.node("t", 4, 6.7, "보완 대상 문장 선정 (최대 5개)")
-g.node("l", 4, 5.5, "AI(LLM)를\n사용할 수 있는가?", "dec", 2.4, 0.6)
-g.node("ai", 1.5, 4.2, "AI 재작성\n(RAG 가이드 포함)", "proc", 2.6)
-g.node("g", 1.5, 2.9, "검증 통과?\n새 숫자·기술명 없음", "dec", 2.2, 0.6)
-g.node("rule", 7.0, 3.5, "빈칸 채우기 틀 생성\n(규칙 기반)", "proc", 3.0)
-g.node("sv", 4, 1.3, "결과 표시 + DB 저장\n(제출·추천·점검·보완 기록)", "proc", 4.2)
-g.node("re", 4, -0.2, "수정 후 재점검할까?", "dec", 2.4, 0.5)
-g.node("e", 8.6, -0.2, "끝", "term", 1.6, 0.7)
-g.arrow("s", "b", "in", "t"); g.arrow("in", "b", "v", "t")
-g.arrow("v", "r", "err", "l", "아니오"); g.arrow("err", "t", "in", "r", via=[(8.6, 19.2)])
-g.arrow("v", "b", "m", "t", "예")
-g.arrow("m", "b", "a", "t"); g.arrow("a", "b", "r", "t"); g.arrow("r", "b", "c", "t")
-g.arrow("c", "r", "note", "l", "예"); g.arrow("note", "b", "sel", "r", via=[(8.6, 10.6)])
-g.arrow("c", "b", "sel", "t", "아니오"); g.arrow("sel", "b", "rv", "t"); g.arrow("rv", "b", "n", "t")
-g.arrow("n", "r", "sv", "r", "아니오", via=[(6.6, 8.0), (9.6, 8.0), (9.6, 1.3)])
-g.arrow("n", "b", "t", "t", "예"); g.arrow("t", "b", "l", "t")
-g.arrow("l", "l", "ai", "t", "예", via=[(1.5, 5.5)])
-g.arrow("l", "r", "rule", "t", "아니오", via=[(7.0, 5.5)])
-g.arrow("ai", "b", "g", "t")
-g.arrow("g", "b", "sv", "l", "예", via=[(1.5, 1.3)])
-g.arrow("g", "r", "rule", "l", "아니오")
-g.arrow("rule", "b", "sv", "r", via=[(7.0, 1.3)])
-g.arrow("sv", "b", "re", "t")
-g.arrow("re", "r", "e", "l", "아니오")
-g.arrow("re", "l", "in", "l", "예", via=[(-0.3, -0.2), (-0.3, 19.2)], color=RED)
-g.ax.text(0.0, 9.6, "문서 수정 후 다시 입력", fontsize=10, color=RED, fontweight="bold", ha="center", rotation=90, va="center")
-g.save("flow-system.png", "JobMate 프로그램 처리 순서도")
+# ── 2) 프로그램 처리 순서도 (한 장에 들어가도록 2열 배치) ──────────────
+# 왼쪽 열: 입력 → 마스킹 → 분석 → 추천 → 직무 선택 → 점검
+# 오른쪽 열: 보완(AI/빈칸 틀) → 저장 → 재점검 → 끝  (점검 아래에서 오른쪽 위로 연결선이 올라감)
+g = Flow(10.4, 13.9, y0=1.0)
+g.node("s", 2.4, 12.2, "시작", "term", 2.0, 0.6)
+g.node("in", 2.4, 11.2, "이력서·자기소개서 입력", "io", 3.2, 0.7)
+g.node("v", 2.4, 9.9, "입력 길이\n80~12,000자?", "dec", 2.4, 0.7)
+g.node("m", 2.4, 8.6, "개인정보 마스킹\n(전화·이메일·주민·카드번호)", "proc", 3.7, 0.75)
+g.node("a", 2.4, 7.55, "문서 분석\n역량·성과 수치·상투 표현·STAR·구성", "proc", 3.9, 0.75)
+g.node("r", 2.4, 6.5, "직무 추천(RAG 검색+역량 사전+행동어)\n→ Top 3·근거·신뢰도", "proc", 3.9, 0.75)
+g.node("c", 2.4, 5.45, "신뢰도가 낮으면\n직접 선택하도록 안내", "proc", 3.4, 0.75)
+g.node("sel", 2.4, 4.4, "점검할 직무 선택", "io", 3.0, 0.65)
+g.node("rv", 2.4, 3.3, "8항목 점검(100점)\n문제 문장 인용·조언·RAG 근거", "proc", 3.8, 0.75)
 
-# ── 3) 문서(Word)용 분할본 ──────────────────────────────────────────
-# 처리 순서도는 세로로 길어(가로:세로 = 1:2) 한 쪽에 넣으면 아래가 잘립니다.
-# 그래서 "8항목 점검" 상자 바로 아래에서 위/아래 두 장으로 나눠 문서에 넣습니다. (발표자료는 원본 한 장을 그대로 사용)
-from PIL import Image, ImageDraw, ImageFont
-im = Image.open(OUT / "flow-system.png").convert("RGB")
-cut = 1030  # 8항목 점검 상자 아래, 다음 판단 마름모 위(픽셀)
-top, bottom = im.crop((0, 0, im.width, cut)), im.crop((0, cut, im.width, im.height))
-banner_h = 56
-b2 = Image.new("RGB", (bottom.width, bottom.height + banner_h), "white")
-b2.paste(bottom, (0, banner_h))
-d = ImageDraw.Draw(b2)
-d.rectangle((82, banner_h, 130, banner_h + 45), fill="white")  # 위쪽 장의 세로 글자가 잘려 남은 조각 지우기
-try:
-    font = ImageFont.truetype("malgun.ttf", 22)
-except OSError:
-    font = ImageFont.load_default()
-d.text((20, 14), "JobMate 프로그램 처리 순서도 (계속) — 점검 이후: 보완 → 저장 → 재점검", fill=(28, 35, 51), font=font)
-top.save(OUT / "flow-system-1.png"); b2.save(OUT / "flow-system-2.png")
-print("saved flow-system-1.png, flow-system-2.png", top.size, b2.size)
+g.node("t", 7.2, 12.2, "보완 대상 문장 선정\n(최대 5개, 없으면 건너뜀)", "proc", 3.4, 0.75)
+g.node("l", 7.2, 10.8, "AI(LLM)를\n사용할 수 있는가?", "dec", 2.4, 0.7)
+g.node("ai", 7.2, 9.4, "AI 재작성\n(RAG 가이드 포함)", "proc", 3.0, 0.7)
+g.node("g", 7.2, 8.0, "검증 통과?\n(새 숫자·기술명 없음)", "dec", 2.4, 0.7)
+g.node("rule", 7.2, 6.6, "빈칸 채우기 틀 생성\n(규칙 기반)", "proc", 3.0, 0.7)
+g.node("sv", 7.2, 5.2, "결과 표시 + DB 저장\n(제출·추천·점검·보완)", "proc", 3.3, 0.75)
+g.node("re", 7.2, 3.7, "수정 후\n재점검할까?", "dec", 2.0, 0.65)
+g.node("e", 7.2, 2.0, "끝", "term", 1.8, 0.6)
+
+for a, b in [("s", "in"), ("in", "v"), ("m", "a"), ("a", "r"), ("r", "c"), ("c", "sel"), ("sel", "rv")]:
+    g.arrow(a, "b", b, "t")
+g.arrow("v", "b", "m", "t", "예")
+g.arrow("v", "l", "in", "l", "아니오", via=[(0.25, 9.9), (0.25, 11.2)])
+g.ax.text(-0.05, 10.55, "오류 안내 후\n다시 입력", fontsize=9.5, color=RED, ha="center", va="center", bbox=dict(fc="white", ec="none", pad=1), zorder=7)
+g.arrow("rv", "b", "t", "l", "보완 단계로", via=[(2.4, 2.2), (4.7, 2.2), (4.7, 12.2)])
+g.arrow("t", "b", "l", "t")
+g.arrow("l", "b", "ai", "t", "예")
+g.arrow("l", "r", "rule", "r", "아니오", via=[(9.5, 10.8), (9.5, 6.6)])
+g.arrow("ai", "b", "g", "t")
+g.arrow("g", "b", "rule", "t", "아니오")
+g.arrow("g", "l", "sv", "l", "예", via=[(5.3, 8.0), (5.3, 5.2)])
+g.arrow("rule", "b", "sv", "t")
+g.arrow("sv", "b", "re", "t")
+g.arrow("re", "b", "e", "t", "아니오")
+g.arrow("re", "r", "in", "l", "예: 문서 수정 후 다시 입력", via=[(9.9, 3.7), (9.9, 12.8), (0.0, 12.8), (0.0, 11.2)], color=RED)
+g.save("flow-system.png", "JobMate 프로그램 처리 순서도")
