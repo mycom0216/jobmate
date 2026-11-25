@@ -19,12 +19,9 @@
 //   (미확인 = 서류에서 찾지 못함. 실제로는 경험이 있는데 안 썼을 수도 있으므로 "추가 기회"로 안내)
 // ─────────────────────────────────────────────────────────────────────────────
 import { ALL_SKILLS } from '../knowledge/jobs.mjs';
-import { findSkills } from './profile.mjs';
+import { analyzeDocs, findSkills } from './profile.mjs';
 import { recommendJobs } from './recommend.mjs';
-import { analyzeDocs } from './profile.mjs';
 import { sentences, tokens } from './text.mjs';
-
-// 모든 직무의 역량 목록(이름 기준 중복 제거). 공고 속 기술명을 찾는 사전으로 사용합니다.
 
 // 공고의 구간 제목을 알아보는 패턴. 제목은 짧은 줄이라는 점을 함께 이용해 본문 문장과 구분합니다.
 const HEAD = {
@@ -66,10 +63,12 @@ export function parsePosting(text) {
 function hardConditions(postingText, resumeText) {
   const out = [];
   const eduReq = /(학사|대졸|4년제|대학교?\s*졸업|석사|박사|전문학사|전문대)[^\n]{0,12}(이상|졸업|필수)?/u.exec(postingText);
+  // "대졸 우대"처럼 우대 사항이거나 공고에 "학력 무관"이 함께 적혀 있으면 필수 요건이 아니므로 미충족 가능으로 단정하지 않습니다.
+  const eduOptional = eduReq && (/학력\s*무관/u.test(postingText) || /우대/u.test(eduReq[0]));
   if (eduReq) {
     const hasUniv = /(대학교|대학원|전문대|학사|석사|박사)/u.test(resumeText);
-    out.push({ type: '학력', text: eduReq[0].trim(), status: hasUniv ? 'check' : 'likely-unmet',
-      note: hasUniv ? '서류의 학력과 공고 요건을 직접 대조하세요.' : '서류에 대학 학력이 보이지 않아 학력 요건을 충족하지 못할 수 있습니다. 공고에 "학력 무관"이나 대체 요건이 있는지 확인하세요.' });
+    out.push({ type: '학력', text: eduReq[0].trim(), status: hasUniv || eduOptional ? 'check' : 'likely-unmet',
+      note: eduOptional && !hasUniv ? '공고에 "학력 무관" 또는 "우대" 문구가 있어 필수 요건이 아닐 수 있습니다. 공고 원문을 직접 확인하세요.' : hasUniv ? '서류의 학력과 공고 요건을 직접 대조하세요.' : '서류에 대학 학력이 보이지 않아 학력 요건을 충족하지 못할 수 있습니다. 공고에 "학력 무관"이나 대체 요건이 있는지 확인하세요.' });
   }
   const yrs = /경력\s*(\d+)\s*년\s*(이상|이하)?/u.exec(postingText);
   if (yrs) out.push({ type: '경력', text: yrs[0].trim(), status: 'check', note: '관련 직무 경력 연차는 자동으로 계산하지 않습니다. 본인의 해당 직무 경력과 직접 대조하세요.' });

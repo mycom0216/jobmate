@@ -134,8 +134,6 @@ export async function reviewDocs(docs, jobId, retriever) {
     items,
     strengths: items.filter((x) => x.severity === 'ok').map((x) => x.title),
     toFix: toFix.map((x) => x.id),
-    // 직무 기준 가이드는 검색이 아니라 직무 id로 직접 가져옵니다(항상 보여 줄 핵심 기준).
-    jobGuide: ['02', '03', '04'].map((n) => ({ id: `${jobId.toUpperCase()}-${n}`, kind: n })).map(({ id }) => id),
     example: job.example,
   };
 }

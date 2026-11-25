@@ -54,8 +54,7 @@ export async function createApp({ dbFile = join(ROOT, 'data', 'jobmate.db'), env
       const p = prepare(resume, cover);
       const docs = analyzeDocs(p);
       const result = await recommendJobs(docs, retriever);
-      const submissionId = store.saveSubmission(userId, p.resume, p.cover, p.pii);
-      const recIds = store.saveRecommendations(submissionId, result.recommendations);
+      const { submissionId, recIds } = store.saveAnalysis(userId, p.resume, p.cover, p.pii, result.recommendations);
       result.recommendations.forEach((r, i) => { r.recId = recIds[i]; });
       return {
         submissionId, pii: p.pii, ...result,

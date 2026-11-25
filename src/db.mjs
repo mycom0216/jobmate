@@ -131,6 +131,17 @@ export class Store {
     return this.db.prepare('SELECT * FROM submissions WHERE submission_id=? AND user_id=?').get(submissionId, userId) ?? null;
   }
 
+  // 제출 1건과 추천 결과를 한 트랜잭션으로 저장합니다(추천 저장이 실패하면 제출도 취소 → 추천 없는 고아 제출이 남지 않음).
+  saveAnalysis(userId, resume, cover, pii, recs) {
+    this.db.exec('BEGIN');
+    try {
+      const submissionId = this.saveSubmission(userId, resume, cover, pii);
+      const recIds = this.saveRecommendations(submissionId, recs);
+      this.db.exec('COMMIT');
+      return { submissionId, recIds };
+    } catch (e) { this.db.exec('ROLLBACK'); throw e; }
+  }
+
   saveRecommendations(submissionId, recs) {
     const st = this.db.prepare('INSERT INTO recommendations(submission_id,job_id,rank,fit,detail) VALUES(?,?,?,?,?)');
     return recs.map((r) => Number(st.run(submissionId, r.jobId, r.rank, r.fit, JSON.stringify({ parts: r.parts, coreMatched: r.coreMatched.map((x) => x.name), coreMissing: r.coreMissing })).lastInsertRowid));

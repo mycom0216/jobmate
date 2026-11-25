@@ -36,7 +36,11 @@ export async function recommendJobs(docs, retriever, { jobs = JOBS, top = 3 } = 
   const nText = normalize(text);
 
   // ② 검색 유사도: 문서 전체를 질의로 직무 청크 전체(공통 가이드 제외)를 검색 → 직무별로 합산
-  const hits = await retriever.search(text.slice(0, 4000), 80, (c) => c.jobId !== null);
+  // 질의 길이를 제한하되, 이력서가 길어도 자소서가 통째로 잘려 나가지 않도록 각각 앞 2,000자씩 사용합니다.
+  // (예전에는 합친 글의 앞 4,000자만 써서 이력서가 길면 자소서가 검색에 전혀 반영되지 않았습니다.)
+  const ragQuery = `${docs.resume.slice(0, 2000)}
+${docs.cover.slice(0, 2000)}`;
+  const hits = await retriever.search(ragQuery, 80, (c) => c.jobId !== null);
   const ragSum = new Map(), ragBest = new Map();
   for (const h of hits) {
     ragSum.set(h.chunk.jobId, (ragSum.get(h.chunk.jobId) ?? 0) + h.fused);

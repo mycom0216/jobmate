@@ -19,8 +19,6 @@ import { sentences } from './text.mjs';
 
 const MAX_TARGETS = 5; // 한 번에 고칠 문장 수 상한(비용·응답 시간 제한 + 사용자가 한 번에 소화할 수 있는 분량)
 
-// 모든 직무의 역량 목록(LLM이 원문에 없는 기술을 끼워 넣었는지 검사하는 기준 사전)
-
 // 수정 대상 문장 고르기: ① 상투적 표현 문장  ② 행동은 있는데 수치가 없는 문장
 export function pickTargets(docs) {
   const out = [], seen = new Set();
@@ -119,7 +117,9 @@ export async function reviseDocs(docs, jobId, { retriever, llm, useLlm = true, b
     if (useLlm && llm?.available && Date.now() - started < budgetMs) {
       try {
         const p = buildPrompt(t, job, guides, docs);
-        const raw = (await llm.complete({ ...p, maxTokens: 220 })).split('\n')[0].replace(/^["'`]+|["'`]+$/gu, '').trim();
+        // 응답이 빈 줄로 시작하는 모델도 있으므로 '첫 줄'이 아니라 '내용이 있는 첫 줄'을 씁니다.
+        const firstLine = (await llm.complete({ ...p, maxTokens: 220 })).split('\n').map((l) => l.trim()).find(Boolean) ?? '';
+        const raw = firstLine.replace(/^["'`]+|["'`]+$/gu, '').trim();
         const bad = validateRewrite(raw, t.original, docs.all);
         if (bad) note = `AI 제안이 검증에 실패해 규칙 기반 틀로 대체했습니다(${bad}).`;
         else { suggestion = raw; method = 'llm'; }
@@ -130,7 +130,9 @@ export async function reviseDocs(docs, jobId, { retriever, llm, useLlm = true, b
   }
 
   // 원문에서 해당 문장만 교체한 미리보기(교체 실패 시 그대로 둠)
-  const apply = (text) => suggestions.reduce((t, s) => (t.includes(s.original) ? t.replace(s.original, s.suggestion) : t), text);
+  // 주의: String.replace의 두 번째 인자를 문자열로 주면 "$&", "$1" 같은 패턴이 특수 의미로 해석됩니다(제안 문장에 '$'가 있으면 엉뚱하게 바뀜).
+  // 그래서 함수로 넘겨 "글자 그대로" 바꿉니다.
+  const apply = (text) => suggestions.reduce((t, s) => (t.includes(s.original) ? t.replace(s.original, () => s.suggestion) : t), text);
   return {
     jobId, jobName: job.name, suggestions,
     revisedResume: apply(docs.resume), revisedCover: apply(docs.cover),

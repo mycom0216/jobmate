@@ -94,7 +94,8 @@ export function createHandler(svc, { sampleFile = join(ROOT, 'samples', 'demo.js
     if (m === 'GET' && p === '/api/history') return json(res, 200, svc.store.history(userOf(url.searchParams.get('userId'))));
 
     if (m === 'POST' && p === '/api/analyze') {
-      const b = await readBody(req, 60000);
+      // 한글은 1글자가 UTF-8로 3바이트라 이력서·자소서 각 12,000자(=약 72KB)가 들어옵니다. 한도가 이보다 작으면 허용 글자 수 안의 입력도 413이 됩니다.
+      const b = await readBody(req, 100000);
       const userId = userOf(b.userId); throttle(userId);
       return json(res, 200, await svc.analyze(userId, b.resume, b.cover));
     }

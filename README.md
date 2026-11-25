@@ -19,7 +19,7 @@ npm start
 
 ## 테스트·평가
 ```bash
-npm test            # 자동 테스트 43개
+npm test            # 자동 테스트 52개
 npm run eval        # 직무 추천 정확도(쉬운 26건·어려운 10건, 가중치 비교)
 node tools/simulate_eval.mjs --md   # 모의 사용자 평가(가상 지원자 6명, 실제 사용자 평가 아님)
 node tools/analyze_survey.mjs 응답.csv   # 실제 사용자 평가 설문 집계(양식: samples/survey_template.csv)
@@ -39,7 +39,7 @@ python tools/make_erd.py   # ERD 이미지
 | src/llm.mjs | Claude · ChatGPT · Ollama 어댑터 |
 | src/db.mjs · app.mjs · http.mjs | SQLite 저장 / 업무 흐름 / API·보안 |
 | public/ | 웹 화면 |
-| docs/ | 기획서·요구사항분석서·명세서·일정표·데이터정의서·테스트결과서·면접가이드·발표자료·포트폴리오 |
+| docs/ | 코드 분석서(전체 검토)·기획서·요구사항분석서·명세서·일정표·데이터정의서·테스트결과서·면접가이드·발표자료·포트폴리오 |
 
 모든 소스 파일 상단과 주요 줄에는 **무엇을 하는지, 왜 그렇게 했는지**를 한국어 주석으로 적어 두었습니다.
 
