@@ -95,7 +95,9 @@ SQLite 11개 테이블: 기준 데이터(job_profiles, job_skills, kb_chunks) + 
 ### 5.7 프로그램 처리 순서도
 사용자가 문서를 입력해 직무 추천을 받고, 점검·보완을 거쳐 저장하기까지의 처리 흐름입니다. 입력 오류, 신뢰도 낮음, AI 사용 불가, AI 검증 실패 같은 분기와 예외를 포함합니다.
 
-![프로그램 처리 순서도](images/flow-system.png)
+![프로그램 처리 순서도 (1/2)](images/flow-system-1.png)
+
+![프로그램 처리 순서도 (2/2)](images/flow-system-2.png)
 
 ## 6. 활용 기술과 선택 이유
 

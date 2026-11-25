@@ -106,7 +106,9 @@ JobMate는 사용자가 작성한 이력서·자기소개서를 RAG 기반으로
 | UC-5 | 피드백 | 👍/👎 저장 | 잘못된 유형 400 |
 
 ### 8.1 처리 순서도
-![프로그램 처리 순서도](images/flow-system.png)
+![프로그램 처리 순서도 (1/2)](images/flow-system-1.png)
+
+![프로그램 처리 순서도 (2/2)](images/flow-system-2.png)
 
 ## 9. 요구사항 우선순위 (MoSCoW)
 - **Must**: FR-01~05, NFR-01, 03, 04, 08

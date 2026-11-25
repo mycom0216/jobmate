@@ -100,7 +100,10 @@ def convert(src, dst):
         if m:
             f = base / m.group(1)
             if f.exists():
-                doc.add_picture(str(f), width=Cm(15))
+                # 세로로 긴 그림이 쪽 높이를 넘어 잘리지 않도록 폭을 줄입니다(최대 폭 15cm, 최대 높이 21cm).
+                from PIL import Image as _Img
+                _w, _h = _Img.open(f).size
+                doc.add_picture(str(f), width=Cm(min(15, 21 * _w / _h)))
                 doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
             i += 1
             continue

@@ -123,3 +123,23 @@ g.arrow("re", "r", "e", "l", "아니오")
 g.arrow("re", "l", "in", "l", "예", via=[(-0.3, -0.2), (-0.3, 19.2)], color=RED)
 g.ax.text(0.0, 9.6, "문서 수정 후 다시 입력", fontsize=10, color=RED, fontweight="bold", ha="center", rotation=90, va="center")
 g.save("flow-system.png", "JobMate 프로그램 처리 순서도")
+
+# ── 3) 문서(Word)용 분할본 ──────────────────────────────────────────
+# 처리 순서도는 세로로 길어(가로:세로 = 1:2) 한 쪽에 넣으면 아래가 잘립니다.
+# 그래서 "8항목 점검" 상자 바로 아래에서 위/아래 두 장으로 나눠 문서에 넣습니다. (발표자료는 원본 한 장을 그대로 사용)
+from PIL import Image, ImageDraw, ImageFont
+im = Image.open(OUT / "flow-system.png").convert("RGB")
+cut = 1030  # 8항목 점검 상자 아래, 다음 판단 마름모 위(픽셀)
+top, bottom = im.crop((0, 0, im.width, cut)), im.crop((0, cut, im.width, im.height))
+banner_h = 56
+b2 = Image.new("RGB", (bottom.width, bottom.height + banner_h), "white")
+b2.paste(bottom, (0, banner_h))
+d = ImageDraw.Draw(b2)
+d.rectangle((82, banner_h, 130, banner_h + 45), fill="white")  # 위쪽 장의 세로 글자가 잘려 남은 조각 지우기
+try:
+    font = ImageFont.truetype("malgun.ttf", 22)
+except OSError:
+    font = ImageFont.load_default()
+d.text((20, 14), "JobMate 프로그램 처리 순서도 (계속) — 점검 이후: 보완 → 저장 → 재점검", fill=(28, 35, 51), font=font)
+top.save(OUT / "flow-system-1.png"); b2.save(OUT / "flow-system-2.png")
+print("saved flow-system-1.png, flow-system-2.png", top.size, b2.size)
