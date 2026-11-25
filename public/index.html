@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JobMate — 직무 추천 · 이력서 점검</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- 상단 바: 서비스 이름과 현재 AI/검색 상태. 상태를 숨기지 않는 이유: 어떤 모드로 동작 중인지 사용자가 알아야 결과를 올바르게 해석할 수 있음 -->
+  <header class="top">
+    <div class="brand">JobMate <span>RAG 직무 추천 · 이력서/자소서 점검</span></div>
+    <div id="status" class="status">상태 확인 중…</div>
+  </header>
+
+  <main>
+    <!-- 진행 단계 표시: 1 작성 → 2 직무 추천 → 3 점검 → 4 보완 -->
+    <ol class="steps" id="steps">
+      <li data-s="1" class="on">① 문서 입력</li>
+      <li data-s="2">② 직무 추천</li>
+      <li data-s="3">③ 직무 맞춤 점검</li>
+      <li data-s="4">④ 보완 제안</li>
+    </ol>
+
+    <section id="p1" class="panel">
+      <p class="hint">이력서와 자기소개서를 붙여 넣으세요. <b>전화번호·이메일·주민번호는 서버에서 자동으로 가려지고</b>, 가려진 내용만 저장·분석됩니다. 하나만 입력해도 됩니다.</p>
+      <div class="two">
+        <label>이력서<textarea id="resume" rows="14" placeholder="학력, 프로젝트/경력, 보유 기술, 자격·수상 등"></textarea></label>
+        <label>자기소개서<textarea id="cover" rows="14" placeholder="지원 동기, 경험, 강점 등"></textarea></label>
+      </div>
+      <div class="row">
+        <button id="go" class="primary">직무 추천 받기</button>
+        <button id="sample" class="ghost">샘플 불러오기</button>
+        <span id="err1" class="err"></span>
+      </div>
+    </section>
+
+    <section id="p2" class="panel hidden">
+      <div id="pii" class="notice hidden"></div>
+      <h2>추천 직무 Top 3</h2>
+      <div id="conf" class="muted"></div>
+      <div id="recs" class="cards"></div>
+      <p class="hint">점검할 직무를 선택하세요. 추천 순위와 무관하게 원하는 직무를 직접 골라도 됩니다.</p>
+      <div class="row"><select id="jobSel"></select><button id="rev" class="primary">이 직무로 점검하기</button><span id="err2" class="err"></span></div>
+    </section>
+
+    <section id="p3" class="panel hidden">
+      <div class="scoreRow"><div id="score" class="score"></div><div><h2 id="rtitle"></h2><div id="rsub" class="muted"></div></div></div>
+      <div id="items"></div>
+      <div class="row"><button id="fix" class="primary">문장 보완 제안 받기</button><label class="chk"><input type="checkbox" id="useLlm" checked> AI(LLM)로 다듬기 (연결된 경우)</label><span id="err3" class="err"></span></div>
+    </section>
+
+    <section id="p4" class="panel hidden">
+      <h2>보완 제안</h2>
+      <div id="warn" class="notice"></div>
+      <div id="sugs"></div>
+      <details><summary>수정 반영 미리보기(자기소개서)</summary><pre id="revCover"></pre></details>
+      <div class="row"><button id="again" class="ghost">수정 후 다시 점검하기</button></div>
+    </section>
+
+    <section class="panel">
+      <h2>내 점검 기록</h2>
+      <div id="hist" class="muted">아직 기록이 없습니다.</div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

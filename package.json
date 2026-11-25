@@ -1,0 +1,13 @@
+{
+  "name": "jobmate",
+  "version": "1.0.0",
+  "description": "JobMate - RAG 기반 직무 추천 및 이력서·자기소개서 검토·보완 시스템",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/",
+    "eval": "node tools/eval.mjs"
+  }
+}
