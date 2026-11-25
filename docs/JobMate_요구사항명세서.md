@@ -27,7 +27,7 @@
 | NFR-04 | 개인정보 | 마스킹 저장, 익명 ID, 기본 127.0.0.1 바인딩, 키 로그 비노출 | M | 마스킹·키 비노출 테스트 | 완료 |
 | NFR-05 | 신뢰성 | 점검·항목 저장 트랜잭션, 같은 DB로 재시작 가능, 외래키 강제 | S | 재시작 회귀 테스트 | 완료 |
 | NFR-06 | 설치성 | Node.js 24+ 만 필요, `시작하기.cmd` 또는 `npm start` | M | 클린 실행 | 완료 |
-| NFR-07 | 유지보수성 | 파일마다 목적·이유 주석, 지식베이스 분리(jobs.mjs), 테스트 58개 | S | 코드 리뷰 | 완료 |
+| NFR-07 | 유지보수성 | 파일마다 목적·이유 주석, 지식베이스 분리(jobs.mjs), 테스트 62개 | S | 코드 리뷰 | 완료 |
 | NFR-08 | 정확성 | AI 제안의 숫자·기술명이 원문에 있는 것만 허용 | M | guard 단위 테스트 | 완료 |
 
 ## 3. 인터페이스 명세(API)
@@ -38,6 +38,7 @@
 | POST /api/review | userId, submissionId, jobId | reviewId, score, grade, items[8], strengths | 400, 404 |
 | POST /api/revise | userId, reviewId, useLlm | suggestions[≤5], revisedResume/Cover, warning | 404 |
 | POST /api/posting | userId, submissionId, posting | postingId, rates{required,preferred}, required/preferred/duty[], conditions[], missingSkills, jobGuess, advice | 400, 404, 413 |
+| POST /api/llm/reconnect | (없음) | llm, llmProvider, llmError | 429(연타 제한) |
 | POST /api/forget | userId, confirm:true | ok, deleted{submissions,reviews,revisions,postings,feedback} | 400(confirm 없음·형식 오류) |
 | POST /api/feedback | userId, type, targetId, helpful | ok | 400, 404(없는·남의 대상) |
 | GET /api/history?userId= | – | 제출·점검 이력 | 400 |

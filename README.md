@@ -14,12 +14,24 @@ npm start
 ```
 브라우저에서 <http://127.0.0.1:5400> (Windows는 `시작하기.cmd` 더블클릭). 「샘플 불러오기」로 바로 시연할 수 있습니다.
 
-### AI 연결(선택)
+### AI 연결 — 로컬 Ollama (권장, 키 불필요)
+1. [Ollama](https://ollama.com)를 설치하고 모델을 받습니다: `ollama pull kanana2:3b`
+2. `.env` 파일에 아래 두 줄을 둡니다(이 저장소의 `.env.example` 참고, `.env`는 git에 올라가지 않음).
+   ```
+   LLM_PROVIDER=ollama
+   OLLAMA_MODEL=kanana2:3b
+   ```
+3. `시작하기.cmd`를 실행하면 Ollama가 꺼져 있을 때 자동으로 켭니다. 화면 위쪽에 `AI: ollama:kanana2:3b`가 보이면 연결된 것입니다.
+- **서버를 켠 뒤에 Ollama를 켜도** 10초 간격으로 자동 재시도하며, 연결이 안 돼 있으면 상태줄에 이유와 **「AI 다시 연결」** 버튼이 나옵니다.
+- 지정한 모델이 없으면 설치된 모델 중 임베딩이 아닌 첫 모델을 씁니다. 연결되면 모델을 미리 메모리에 올려 첫 요청이 느리지 않게 합니다.
+- 로컬 Ollama는 외부로 데이터가 나가지 않습니다.
+
+### AI 연결 — Claude·ChatGPT (선택)
 `.env.example`을 `.env`로 복사해 키를 채웁니다. 자세한 값은 파일 주석 참조. 키가 없고 로컬 Ollama(`kanana2:3b`)가 있으면 그것을, 둘 다 없으면 규칙 기반으로 동작합니다. 외부 AI를 쓰면 **마스킹된 문장 일부가 해당 회사로 전송**됩니다.
 
 ## 테스트·평가
 ```bash
-npm test            # 자동 테스트 58개
+npm test            # 자동 테스트 62개
 npm run eval        # 직무 추천 정확도(쉬운 26건·어려운 10건, 가중치 비교)
 node tools/simulate_eval.mjs --md   # 모의 사용자 평가(가상 지원자 6명, 실제 사용자 평가 아님)
 node tools/llm_check.mjs P1,P3,P7        # 실제 LLM(Ollama 등)으로 보완 제안 채택률·사례 점검

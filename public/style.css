@@ -55,3 +55,5 @@ pre { white-space:pre-wrap; background:#f3f5fa; padding:12px; border-radius:10px
 .chk { font-weight:400; display:flex; gap:6px; align-items:center; }
 
 button.danger { color: var(--bad); border-color: var(--bad); }
+
+button.mini { padding: 2px 10px; font-size: 12px; margin-left: 6px; }

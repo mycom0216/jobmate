@@ -12,16 +12,19 @@
 // [키가 없어도 동작]
 //   LLM이 없으면 available=false 이고, 호출자는 규칙 기반(rule) 대체 경로를 씁니다. → 데모가 절대 멈추지 않음.
 // ─────────────────────────────────────────────────────────────────────────────
-const DEFAULTS = {
-  anthropic: process.env.ANTHROPIC_MODEL || 'claude-haiku-5-5',
-  openai: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-  ollama: process.env.OLLAMA_MODEL || 'kanana2:3b',
-};
+// 기본 모델: 호출 시점의 env에서 읽습니다(.env는 server.mjs가 import 이후에 읽으므로 모듈 맨 위에서 읽으면 .env 값이 무시됨).
+const defaultModel = (env, provider) => ({
+  anthropic: env.ANTHROPIC_MODEL || 'claude-haiku-5-5',
+  openai: env.OPENAI_MODEL || 'gpt-4o-mini',
+  ollama: env.OLLAMA_MODEL || 'kanana2:3b',
+})[provider];
 
 export class LLM {
   // fetchFn을 주입할 수 있게 한 이유: 테스트에서 가짜 서버 응답을 끼워 넣어 "외부 호출 없이" 검증하기 위함.
-  constructor({ env = process.env, provider, model, timeoutMs = 30000, fetchFn = globalThis.fetch } = {}) {
+  constructor({ env = process.env, provider, model, timeoutMs = 30000, fetchFn = globalThis.fetch, retryMs = 10000 } = {}) {
     this.env = env;
+    this.retryMs = retryMs; // Ollama 재연결 시도 최소 간격(너무 자주 두드리지 않기 위함)
+    this.lastTry = 0;
     this.wanted = (provider ?? env.LLM_PROVIDER ?? 'auto').toLowerCase();
     this.modelOverride = model ?? null;
     this.timeoutMs = timeoutMs;
@@ -38,20 +41,44 @@ export class LLM {
   // 사용할 공급자를 결정합니다. auto 순서: Claude 키 → OpenAI 키 → 로컬 Ollama.
   async init() {
     const w = this.wanted;
-    const pick = (p) => { this.provider = p; this.model = this.modelOverride ?? DEFAULTS[p]; this.available = true; };
+    this.lastTry = Date.now();
+    const pick = (p, model) => { this.provider = p; this.model = model; this.available = true; };
     if (w === 'off') return this;
-    if ((w === 'anthropic' || w === 'auto') && this.env.ANTHROPIC_API_KEY) return (pick('anthropic'), this);
-    if ((w === 'openai' || w === 'auto') && this.env.OPENAI_API_KEY) return (pick('openai'), this);
+    if ((w === 'anthropic' || w === 'auto') && this.env.ANTHROPIC_API_KEY) return (pick('anthropic', this.modelOverride ?? defaultModel(this.env, 'anthropic')), this);
+    if ((w === 'openai' || w === 'auto') && this.env.OPENAI_API_KEY) return (pick('openai', this.modelOverride ?? defaultModel(this.env, 'openai')), this);
     if (w === 'ollama' || w === 'auto') {
       try {
-        // Ollama가 켜져 있고 원하는 모델이 설치돼 있는지 2.5초 안에 확인(오래 기다리면 서버 시작이 느려짐)
+        // Ollama가 켜져 있는지 2.5초 안에 확인(오래 기다리면 서버 시작이 느려짐)
         const res = await this.fetch(`${this.ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(2500) });
         const names = (await res.json()).models?.map((m) => m.name) ?? [];
-        const m = this.modelOverride ?? DEFAULTS.ollama;
-        if (names.some((n) => n === m || n === `${m}:latest`)) { pick('ollama'); this.model = m; }
-      } catch { /* Ollama 없음 → 규칙 기반으로 동작 */ }
+        const has = (m) => names.find((n) => n === m || n === `${m}:latest`);
+        // 모델 선택: ① 지정한 모델 ② 기본 모델(kanana2:3b) ③ 설치된 것 중 "임베딩이 아닌" 첫 모델.
+        // (③이 없으면 임베딩 전용 모델만 설치된 PC에서 글 생성 요청이 계속 실패함)
+        const chosen = (this.modelOverride && has(this.modelOverride)) || has(this.env.OLLAMA_MODEL || '') || has(defaultModel(this.env, 'ollama'))
+          || names.find((n) => !/embed/iu.test(n));
+        if (chosen) { pick('ollama', chosen); this.#warmup(); }
+        else this.lastError = 'Ollama는 켜져 있지만 글 생성용 모델이 설치되어 있지 않습니다(예: ollama pull kanana2:3b).';
+      } catch { this.lastError = 'Ollama에 연결할 수 없습니다. Ollama 앱을 실행한 뒤 "AI 다시 연결"을 누르세요.'; }
     }
     return this;
+  }
+
+  // 아직 연결되지 않았다면(예: 서버를 켠 뒤에 Ollama를 켰음) 다시 연결을 시도합니다. 최소 retryMs 간격.
+  // 상태 조회·보완 요청 때 불러서, 서버를 다시 시작하지 않아도 Ollama를 켜 두면 곧 연결되게 합니다.
+  async ensure({ force = false } = {}) {
+    if (this.available || this.wanted === 'off') return this.available;
+    if (!force && Date.now() - this.lastTry < this.retryMs) return false;
+    await this.init();
+    return this.available;
+  }
+
+  // 모델을 메모리에 미리 올려 둡니다(첫 질문이 모델 적재 시간을 떠안아 시간 초과되지 않도록). 기다리지 않고 실행만 시켜 둡니다.
+  #warmup() {
+    this.fetch(`${this.ollamaUrl}/api/chat`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: this.model, messages: [{ role: 'user', content: '안녕' }], stream: false, keep_alive: '30m', options: { num_predict: 4 } }),
+      signal: AbortSignal.timeout(120000),
+    }).catch(() => {});
   }
 
   // 공통 호출. 실패하면 예외를 던지고, 호출자가 규칙 기반으로 대체합니다.

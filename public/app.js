@@ -173,12 +173,23 @@ $('forget').addEventListener('click', () => busy($('forget'), $('errForget'), as
   location.reload();
 }, '삭제 중…'));
 
+// ── AI 연결 상태 ──────────────────────────────────────────────────────
+// AI가 연결되지 않았으면 이유를 보여 주고 "AI 다시 연결" 버튼을 띄웁니다(Ollama를 서버보다 늦게 켠 경우 등).
+function showStatus(s) {
+  $('status').textContent = `검색: ${s.retrieval} · AI: ${s.llm} · 지식 ${s.chunks ?? ''}개` + (s.llmProvider ? '' : (s.llmError ? ` — ${s.llmError}` : ''));
+  $('llmRetry').classList.toggle('hidden', !!s.llmProvider);
+}
+$('llmRetry').addEventListener('click', async () => {
+  $('status').textContent = 'AI 연결 확인 중…';
+  try { const r = await api('/api/llm/reconnect', {}); const s = await api('/api/status'); showStatus({ ...s, ...r }); } catch (e) { $('status').textContent = e.message; }
+});
+
 // ── 시작 ──────────────────────────────────────────────────────────────
 (async () => {
   try {
     const [s, jobs] = await Promise.all([api('/api/status'), api('/api/jobs')]);
     state.jobs = jobs;
-    $('status').textContent = `검색: ${s.retrieval} · AI: ${s.llm} · 지식 ${s.chunks}개`;
+    showStatus(s);
     loadHistory();
   } catch { $('status').textContent = '서버에 연결할 수 없습니다.'; }
 })();

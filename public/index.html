@@ -10,7 +10,7 @@
   <!-- 상단 바: 서비스 이름과 현재 AI/검색 상태. 상태를 숨기지 않는 이유: 어떤 모드로 동작 중인지 사용자가 알아야 결과를 올바르게 해석할 수 있음 -->
   <header class="top">
     <div class="brand">JobMate <span>RAG 직무 추천 · 이력서/자소서 점검</span></div>
-    <div id="status" class="status">상태 확인 중…</div>
+    <div class="status"><span id="status">상태 확인 중…</span> <button id="llmRetry" class="ghost mini hidden">AI 다시 연결</button></div>
   </header>
 
   <main>

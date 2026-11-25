@@ -123,6 +123,7 @@ function buildPrompt(target, job, guides, docs) {
 export async function reviseDocs(docs, jobId, { retriever, llm, useLlm = true, budgetMs = 45000 } = {}) {
   const job = jobById(jobId);
   if (!job) throw new Error('알 수 없는 직무입니다.');
+  if (useLlm && llm?.ensure) await llm.ensure(); // Ollama를 나중에 켠 경우를 위해 한 번 더 연결 확인
   const targets = pickTargets(docs);
   const started = Date.now();
   const suggestions = [];

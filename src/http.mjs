@@ -11,6 +11,7 @@
 //   POST /api/review            ②선택 직무 기준 점검
 //   POST /api/revise            ③문장 보완 제안
 //   POST /api/posting           ★채용 공고 요건 대조 점검
+//   POST /api/llm/reconnect     AI(Ollama 등) 다시 연결 시도
 //   POST /api/forget            내 기록 전부 삭제(confirm 필요, 복구 불가)
 //   POST /api/feedback          추천·점검·제안이 도움이 됐는지 평가
 //   GET  /api/history?userId=   내 기록(점검 점수 변화)
@@ -72,7 +73,13 @@ export function createHandler(svc, { sampleFile = join(ROOT, 'samples', 'demo.js
 
   async function api(req, res, url) {
     const m = req.method, p = url.pathname;
+    if (m === 'POST' && p === '/api/llm/reconnect') {
+      throttle('llm-reconnect'); // 버튼을 연타해도 연결 확인이 몰리지 않게 간격 제한
+      await svc.llm.ensure({ force: true }); // 화면의 "AI 다시 연결" 버튼
+      return json(res, 200, { llm: svc.llm.label, llmProvider: svc.llm.available ? svc.llm.provider : null, llmError: svc.llm.lastError });
+    }
     if (m === 'GET' && p === '/api/status') {
+      await svc.llm.ensure?.(); // 연결이 안 돼 있으면 (10초 간격으로) 다시 시도
       return json(res, 200, { chunks: svc.chunks.length, jobs: svc.jobs.length, retrieval: svc.retriever.mode, llm: svc.llm.label, llmProvider: svc.llm.available ? svc.llm.provider : null, llmError: svc.llm.lastError });
     }
     if (m === 'GET' && p === '/api/jobs') {

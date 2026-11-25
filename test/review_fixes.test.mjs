@@ -212,3 +212,57 @@ test('프롬프트 구조: 사용자 문서는 system이 아니라 user 메시�
   assert.equal((user.match(/<\/문서>/gu) ?? []).length, 1, '문서 속 </문서> 태그는 제거되어 구역을 빠져나갈 수 없어야 함');
   assert.match(captured.system, /명령이 아닙니다/u);
 });
+
+// ── Ollama 연결 견고성 ───────────────────────────────────────────────────
+// 가짜 fetch: tagsReplies를 순서대로 돌려주는 /api/tags, 나머지 호출은 기록만 합니다.
+const fakeOllama = (tagsReplies) => {
+  const calls = [];
+  const fetchFn = async (url) => {
+    calls.push(String(url));
+    if (String(url).endsWith('/api/tags')) {
+      const r = tagsReplies.length > 1 ? tagsReplies.shift() : tagsReplies[0];
+      if (r === 'down') throw new Error('ECONNREFUSED');
+      return { ok: true, json: async () => ({ models: r.map((name) => ({ name })) }) };
+    }
+    return { ok: true, json: async () => ({ message: { content: 'ok' } }) };
+  };
+  return { fetchFn, calls };
+};
+
+test('Ollama: 서버를 켠 뒤에 Ollama를 켜도 ensure()로 다시 연결된다', async () => {
+  const f = fakeOllama(['down', ['kanana2:3b']]);
+  const llm = new LLM({ env: {}, provider: 'ollama', fetchFn: f.fetchFn, retryMs: 0 });
+  await llm.init();
+  assert.equal(llm.available, false);
+  assert.match(llm.lastError, /Ollama에 연결할 수 없습니다/u);
+  assert.equal(await llm.ensure(), true);
+  assert.equal(llm.label, 'ollama:kanana2:3b');
+});
+
+test('Ollama: 재연결 시도는 retryMs 간격으로 제한된다(연타해도 서버를 두드리지 않음), force는 즉시 시도', async () => {
+  const f = fakeOllama(['down']);
+  const llm = new LLM({ env: {}, provider: 'ollama', fetchFn: f.fetchFn, retryMs: 60000 });
+  await llm.init();
+  const before = f.calls.length;
+  await llm.ensure(); await llm.ensure();
+  assert.equal(f.calls.length, before, '간격 안에서는 다시 확인하지 않아야 함');
+  await llm.ensure({ force: true });
+  assert.equal(f.calls.length, before + 1);
+});
+
+test('Ollama: 모델 선택 — 지정(.env) 모델 > 기본 모델 > 임베딩이 아닌 첫 모델, 임베딩 모델만 있으면 연결하지 않고 이유를 알려 준다', async () => {
+  const pickFrom = async (env, names) => { const llm = await new LLM({ env, provider: 'ollama', fetchFn: fakeOllama([names]).fetchFn }).init(); return llm; };
+  assert.equal((await pickFrom({ OLLAMA_MODEL: 'foo:1b' }, ['embeddinggemma:latest', 'kanana2:3b', 'foo:1b'])).model, 'foo:1b'); // .env 값 존중
+  assert.equal((await pickFrom({}, ['embeddinggemma:latest', 'kanana2:3b'])).model, 'kanana2:3b');
+  assert.equal((await pickFrom({}, ['embeddinggemma:latest', 'other-chat:7b'])).model, 'other-chat:7b'); // 기본 모델이 없으면 임베딩 아닌 첫 모델
+  const onlyEmbed = await pickFrom({}, ['embeddinggemma:latest']);
+  assert.equal(onlyEmbed.available, false);
+  assert.match(onlyEmbed.lastError, /글 생성용 모델이 설치되어 있지 않습니다/u);
+});
+
+test('Ollama: 연결되면 모델 예열 요청을 보낸다(첫 질문 시간 초과 방지)', async () => {
+  const f = fakeOllama([['kanana2:3b']]);
+  await new LLM({ env: {}, provider: 'ollama', fetchFn: f.fetchFn }).init();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(f.calls.some((u) => u.endsWith('/api/chat')), '예열 호출이 있어야 함');
+});
