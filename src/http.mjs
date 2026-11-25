@@ -45,7 +45,12 @@ const readBody = (req, limit) => new Promise((resolve, reject) => {
   req.on('data', (c) => { size += c.length; if (size > limit) tooBig = true; else if (!tooBig) parts.push(c); });
   req.on('end', () => {
     if (tooBig) return reject(new HttpError(413, '요청이 너무 큽니다.'));
-    try { resolve(parts.length ? JSON.parse(Buffer.concat(parts).toString('utf8')) : {}); } catch { reject(new HttpError(400, 'JSON 형식이 올바르지 않습니다.')); }
+    try {
+      const body = parts.length ? JSON.parse(Buffer.concat(parts).toString('utf8')) : {};
+      // JSON이지만 객체가 아닌 본문(null, 배열, 숫자, 문자열)은 아래에서 b.userId 같은 접근 때 예외(500)가 되므로 여기서 400으로 막습니다.
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) return reject(new HttpError(400, '요청 본문은 JSON 객체여야 합니다.'));
+      resolve(body);
+    } catch { reject(new HttpError(400, 'JSON 형식이 올바르지 않습니다.')); }
   });
 });
 
@@ -112,7 +117,9 @@ export function createHandler(svc, { sampleFile = join(ROOT, 'samples', 'demo.js
       const b = await readBody(req, 1000);
       const type = ['recommendation', 'review', 'revision'].includes(b.type) ? b.type : null;
       if (!type) throw new HttpError(400, 'type이 올바르지 않습니다.');
-      svc.store.saveFeedback(userOf(b.userId), type, intOf(b.targetId, 'targetId'), !!b.helpful);
+      const fbUser = userOf(b.userId), targetId = intOf(b.targetId, 'targetId');
+      if (!svc.store.ownsTarget(fbUser, type, targetId)) throw new HttpError(404, '평가할 대상을 찾을 수 없습니다.');
+      svc.store.saveFeedback(fbUser, type, targetId, !!b.helpful);
       return json(res, 200, { ok: true });
     }
     throw new HttpError(404, '찾을 수 없는 API입니다.');
@@ -120,7 +127,9 @@ export function createHandler(svc, { sampleFile = join(ROOT, 'samples', 'demo.js
 
   // 정적 파일(public/): 경로 이탈을 막기 위해 정규화 후 public 폴더 안인지 확인합니다.
   function serveStatic(req, res, url) {
-    const rel = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname).replace(/^[/\\]+/u, '');
+    let decoded;
+    try { decoded = decodeURIComponent(url.pathname); } catch { throw new HttpError(400, '주소 형식이 올바르지 않습니다.'); } // "%E0%A4%A" 같은 깨진 인코딩
+    const rel = url.pathname === '/' ? 'index.html' : decoded.replace(/^[/\\]+/u, '');
     const root = join(ROOT, 'public');
     const file = normalize(join(root, rel));
     if (!file.startsWith(root + sep) || !existsSync(file) || !statSync(file).isFile()) {

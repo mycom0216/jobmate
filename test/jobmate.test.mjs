@@ -286,3 +286,18 @@ test('모의 평가에서 발견한 결함: 규칙 보완은 도구·기술(영�
   const docsBe = analyzeDocs({ resume: '', cover: 'Java로 API를 만들었습니다. 열심히 했습니다.' });
   assert.ok(ruleRewrite({ original: '열심히 했습니다.', issue: '막연한 표현(열심히)' }, jobBe, docsBe).includes('Java을(를) 활용해'));
 });
+
+test('견고성: 깨진 주소 인코딩·JSON이지만 객체가 아닌 본문은 500이 아니라 400을 돌려준다', async () => {
+  assert.equal((await fetch(base + '/%E0%A4%A')).status, 400);
+  for (const body of ['null', '123', '"문자열"', '[1,2]']) {
+    assert.equal((await post('/api/analyze', body)).status, 400, body);
+  }
+});
+
+test('보안·무결성: 피드백은 존재하고 내 소유인 대상에만 저장된다(없는 번호·남의 기록은 404)', async () => {
+  const send = (uid, type, id) => fetch(base + '/api/feedback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId: uid, type, targetId: id, helpful: true }) });
+  const a = await (await fetch(base + '/api/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId: 'fb-owner-01', resume: BACKEND_RESUME, cover: BACKEND_COVER }) })).json();
+  assert.equal((await send('fb-owner-01', 'recommendation', a.recommendations[0].recId)).status, 200);
+  assert.equal((await send('fb-other-001', 'recommendation', a.recommendations[0].recId)).status, 404); // 남의 기록
+  assert.equal((await send('fb-owner-01', 'review', 999999)).status, 404);                              // 없는 번호
+});

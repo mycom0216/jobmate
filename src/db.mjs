@@ -167,6 +167,16 @@ export class Store {
     return Number(r.lastInsertRowid);
   }
 
+  // 피드백 대상이 "존재하고 이 사용자의 것"인지 확인합니다(없는 번호나 남의 기록에 평가가 쌓이는 것을 막음).
+  ownsTarget(userId, type, id) {
+    const sql = {
+      recommendation: 'SELECT 1 FROM recommendations r JOIN submissions s ON s.submission_id=r.submission_id WHERE r.rec_id=? AND s.user_id=?',
+      review: 'SELECT 1 FROM reviews r JOIN submissions s ON s.submission_id=r.submission_id WHERE r.review_id=? AND s.user_id=?',
+      revision: 'SELECT 1 FROM revisions v JOIN reviews r ON r.review_id=v.review_id JOIN submissions s ON s.submission_id=r.submission_id WHERE v.revision_id=? AND s.user_id=?',
+    }[type];
+    return !!sql && !!this.db.prepare(sql).get(id, userId);
+  }
+
   saveFeedback(userId, type, id, helpful) {
     this.ensureUser(userId);
     this.db.prepare('INSERT INTO feedback(user_id,target_type,target_id,helpful,created_at) VALUES(?,?,?,?,?)').run(userId, type, id, helpful ? 1 : 0, now());

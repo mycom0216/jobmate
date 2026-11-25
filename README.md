@@ -19,7 +19,7 @@ npm start
 
 ## 테스트·평가
 ```bash
-npm test            # 자동 테스트 41개
+npm test            # 자동 테스트 43개
 npm run eval        # 직무 추천 정확도(쉬운 26건·어려운 10건, 가중치 비교)
 node tools/simulate_eval.mjs --md   # 모의 사용자 평가(가상 지원자 6명, 실제 사용자 평가 아님)
 node tools/analyze_survey.mjs 응답.csv   # 실제 사용자 평가 설문 집계(양식: samples/survey_template.csv)
