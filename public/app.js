@@ -163,6 +163,16 @@ async function loadHistory() {
     x.reviews.length ? ' · 점검 ' + x.reviews.map((v) => `${name(v.job_id)} ${v.score}점`).join(' → ') : '')) : ['아직 기록이 없습니다.']));
 }
 
+// ── 내 기록 삭제 ──────────────────────────────────────────────────────
+// 서버의 내 기록을 모두 지우고, 브라우저에 저장된 익명 ID도 버려 새 ID로 시작합니다(예전 ID로는 더 이상 아무것도 조회되지 않게).
+$('forget').addEventListener('click', () => busy($('forget'), $('errForget'), async () => {
+  if (!window.confirm('내 기록(제출 서류·추천·점검·보완·공고 점검·평가)을 모두 삭제합니다.\n삭제한 기록은 복구할 수 없습니다. 계속할까요?')) return;
+  const r = await api('/api/forget', { confirm: true });
+  try { localStorage.removeItem('jobmate.uid'); } catch { /* 저장소를 못 쓰는 환경이면 무시 */ }
+  window.alert(`삭제했습니다. (제출 ${r.deleted.submissions}건, 점검 ${r.deleted.reviews}건, 보완 ${r.deleted.revisions}건, 공고 점검 ${r.deleted.postings}건, 평가 ${r.deleted.feedback}건)`);
+  location.reload();
+}, '삭제 중…'));
+
 // ── 시작 ──────────────────────────────────────────────────────────────
 (async () => {
   try {

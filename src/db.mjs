@@ -178,6 +178,22 @@ export class Store {
     return Number(r.lastInsertRowid);
   }
 
+  // 이 사용자의 모든 데이터를 삭제합니다(개인정보 삭제권: 평가 참여자가 요청하면 즉시 지울 수 있어야 함).
+  // users 행 하나를 지우면 외래키의 ON DELETE CASCADE로 제출 → 추천·점검(항목)·보완·공고 점검과 피드백이 함께 지워집니다.
+  // 반환: 삭제 전 건수(화면에 "몇 건을 지웠는지" 알려 주기 위함). 없는 사용자면 전부 0 (여러 번 호출해도 안전: 멱등).
+  deleteUser(userId) {
+    const n = (sql) => Number(this.db.prepare(sql).get(userId)?.n ?? 0);
+    const counts = {
+      submissions: n('SELECT COUNT(*) n FROM submissions WHERE user_id=?'),
+      reviews: n('SELECT COUNT(*) n FROM reviews r JOIN submissions s ON s.submission_id=r.submission_id WHERE s.user_id=?'),
+      revisions: n('SELECT COUNT(*) n FROM revisions v JOIN reviews r ON r.review_id=v.review_id JOIN submissions s ON s.submission_id=r.submission_id WHERE s.user_id=?'),
+      postings: n('SELECT COUNT(*) n FROM posting_checks p JOIN submissions s ON s.submission_id=p.submission_id WHERE s.user_id=?'),
+      feedback: n('SELECT COUNT(*) n FROM feedback WHERE user_id=?'),
+    };
+    this.db.prepare('DELETE FROM users WHERE user_id=?').run(userId);
+    return counts;
+  }
+
   // 피드백 대상이 "존재하고 이 사용자의 것"인지 확인합니다(없는 번호나 남의 기록에 평가가 쌓이는 것을 막음).
   ownsTarget(userId, type, id) {
     const sql = {

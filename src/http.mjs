@@ -11,6 +11,7 @@
 //   POST /api/review            ②선택 직무 기준 점검
 //   POST /api/revise            ③문장 보완 제안
 //   POST /api/posting           ★채용 공고 요건 대조 점검
+//   POST /api/forget            내 기록 전부 삭제(confirm 필요, 복구 불가)
 //   POST /api/feedback          추천·점검·제안이 도움이 됐는지 평가
 //   GET  /api/history?userId=   내 기록(점검 점수 변화)
 //   GET  /api/stats             운영 지표
@@ -113,6 +114,13 @@ export function createHandler(svc, { sampleFile = join(ROOT, 'samples', 'demo.js
       const b = await readBody(req, 30000);
       const userId = userOf(b.userId); throttle(userId);
       return json(res, 200, await svc.posting(userId, intOf(b.submissionId, 'submissionId'), b.posting));
+    }
+    // 내 기록 전부 삭제. 실수로 지우는 것을 막기 위해 confirm:true 를 명시해야 합니다(복구 불가).
+    if (m === 'POST' && p === '/api/forget') {
+      const b = await readBody(req, 1000);
+      const userId = userOf(b.userId);
+      if (b.confirm !== true) throw new HttpError(400, '삭제하려면 confirm: true 가 필요합니다. 삭제한 기록은 복구할 수 없습니다.');
+      return json(res, 200, { ok: true, deleted: svc.store.deleteUser(userId) });
     }
     if (m === 'POST' && p === '/api/feedback') {
       const b = await readBody(req, 1000);
