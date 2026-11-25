@@ -16,7 +16,7 @@ import { analyzeDocs, findSkills, hasAlias, isQuantified } from '../src/profile.
 import { recommendJobs } from '../src/recommend.mjs';
 import { pickTargets, ruleRewrite, validateRewrite } from '../src/revise.mjs';
 import { maskPII, tokens } from '../src/text.mjs';
-import { JOBS } from '../knowledge/jobs.mjs';
+import { ALL_SKILLS, JOBS } from '../knowledge/jobs.mjs';
 
 const BACKEND_RESUME = '컴퓨터공학 졸업. Spring Boot와 MySQL로 주문 API 12개를 설계·구현했고 응답 시간을 1.2초에서 0.3초로 줄였습니다. 기술: Java, Spring, SQL, Git, Docker. 자격: 정보처리기사. 프로젝트 경험 학력 있음.';
 const BACKEND_COVER = '서버 개발자로 지원합니다. 조회가 느린 문제가 있었고 제가 쿼리를 분석해 인덱스를 추가했습니다. 열심히 하겠습니다. 최선을 다하겠습니다.';
@@ -270,4 +270,19 @@ test('모의 평가에서 발견한 결함: 빈칸 표시 [지표]가 있어도 
   assert.equal(validateRewrite('인스타그램 계정을 운영해 [지표]를 [이전 값]에서 [이후 값]으로 개선했습니다.', doc, doc), null);
   // 빈칸 밖에 새 숫자·기술이 있으면 여전히 거절
   assert.match(validateRewrite('인스타그램 계정을 운영해 팔로워를 40% 늘렸습니다. [지표]', doc, doc), /원문에 없는 숫자/u);
+});
+
+test('모의 평가에서 발견한 결함: 같은 이름의 역량은 직무별 별칭을 합쳐서 인식한다(커뮤니케이션 = 면담·조율·공감 …)', () => {
+  assert.ok(findSkills('학생 면담으로 의견을 조율했습니다.', ALL_SKILLS).some((s) => s.name === '커뮤니케이션'));
+  assert.ok(findSkills('고객의 불만에 공감하며 설명했습니다.', ALL_SKILLS).some((s) => s.name === '커뮤니케이션'));
+});
+
+test('모의 평가에서 발견한 결함: 규칙 보완은 도구·기술(영문 이름)만 "활용해"로 쓰고 업무 역량(고객 응대)은 쓰지 않는다', () => {
+  const job = JOBS.find((j) => j.id === 'cs');
+  const docsCs = analyzeDocs({ resume: '', cover: '고객 응대를 했습니다. 항상 최선을 다했습니다.' });
+  const s1 = ruleRewrite({ original: '항상 최선을 다했습니다.', issue: '막연한 표현(최선)' }, job, docsCs);
+  assert.ok(!s1.includes('고객 응대을') && !s1.includes('고객 응대를 활용') && s1.includes('[사용한 도구·방법]'));
+  const jobBe = JOBS.find((j) => j.id === 'backend');
+  const docsBe = analyzeDocs({ resume: '', cover: 'Java로 API를 만들었습니다. 열심히 했습니다.' });
+  assert.ok(ruleRewrite({ original: '열심히 했습니다.', issue: '막연한 표현(열심히)' }, jobBe, docsBe).includes('Java을(를) 활용해'));
 });

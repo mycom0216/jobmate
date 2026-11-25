@@ -26,10 +26,11 @@ for (const p of personas) {
   const t0 = performance.now();
   const a = await app.analyze(uid, p.resume, p.cover);
   const top = a.recommendations.map((r) => r.jobId);
-  const hit1 = p.intended.includes(top[0]);
+  // expectLow: 일부러 정보가 거의 없는 문서. 이런 문서는 "직무를 맞히는지"가 아니라 "신뢰도 low로 안내하는지"를 봅니다.
+  const hit1 = p.expectLow ? a.confidence.level === 'low' : p.intended.includes(top[0]);
   const hit1ok = hit1 || p.alsoOk.includes(top[0]);
-  const hit3 = top.some((j) => p.intended.includes(j));
-  const jobId = p.intended[0]; // 점검은 의도한 직무 기준으로(사용자가 목표 직무를 직접 고르는 상황)
+  const hit3 = p.expectLow ? hit1 : top.some((j) => p.intended.includes(j));
+  const jobId = p.expectLow ? top[0] : p.intended[0]; // 점검은 의도한 직무(없으면 1순위) 기준으로(사용자가 목표 직무를 직접 고르는 상황)
   const before = await app.review(uid, a.submissionId, jobId);
   const rev = await app.revise(uid, before.reviewId, false);
   // 날조 검사: 규칙 보완 제안이 원문에 없는 숫자·기술을 포함하지 않는가
@@ -42,7 +43,7 @@ for (const p of personas) {
   const post2 = await app.posting(uid, a2.submissionId, p.posting);
 
   rows.push({
-    id: p.id, name: p.name, intended: p.intended[0], top, hit1, hit1ok, hit3, confidence: a.confidence.level,
+    id: p.id, name: p.name, intended: p.expectLow ? '(신뢰도 low 기대)' : p.intended[0], expectLow: !!p.expectLow, top, hit1, hit1ok, hit3, confidence: a.confidence.level,
     scoreBefore: before.score, scoreAfter: after.score,
     weakBefore: before.items.filter((i) => i.severity === 'high').map((i) => i.id),
     suggestions: rev.suggestions.length, fabricated,
@@ -54,9 +55,9 @@ for (const p of personas) {
 const n = rows.length, sum = (f) => rows.reduce((s, r) => s + f(r), 0);
 const avg = (f) => Math.round((sum(f) / n) * 10) / 10;
 if (process.argv.includes('--md')) {
-  console.log('| ID | 지원자 | 의도 직무 | 추천 Top3 | 1순위 일치 | Top3 포함 | 신뢰도 | 점검 전→후 | 공고 필수충족 전→후 | 보완 제안(날조) |');
-  console.log('|---|---|---|---|---|---|---|---|---|---|');
-  for (const r of rows) console.log(`| ${r.id} | ${r.name} | ${r.intended} | ${r.top.join(', ')} | ${r.hit1 ? '일치' : r.hit1ok ? '허용 직무' : '불일치'} | ${r.hit3 ? 'O' : 'X'} | ${r.confidence} | ${r.scoreBefore}→${r.scoreAfter} | ${r.postBefore}%→${r.postAfter}% | ${r.suggestions}건(${r.fabricated}) |`);
+  console.log('| ID | 지원자 | 의도 직무 | 추천 Top3 | 1순위 일치 | Top3 포함 | 신뢰도 | 점검 전→후 | 공고 필수충족 전→후 | 공고 조건 안내 | 보완 제안(날조) |');
+  console.log('|---|---|---|---|---|---|---|---|---|---|---|');
+  for (const r of rows) console.log(`| ${r.id} | ${r.name} | ${r.intended} | ${r.top.join(', ')} | ${r.hit1 ? '일치' : r.hit1ok ? '허용 직무' : '불일치'} | ${r.hit3 ? 'O' : 'X'} | ${r.confidence} | ${r.scoreBefore}→${r.scoreAfter} | ${r.postBefore}%→${r.postAfter}% | ${r.postCond || '-'} | ${r.suggestions}건(${r.fabricated}) |`);
 } else console.table(rows.map(({ weakBefore, ...r }) => ({ ...r, top: r.top.join('/') })));
 console.log(`\n요약: 1순위 일치 ${rows.filter((r) => r.hit1).length}/${n} (허용 직무 포함 ${rows.filter((r) => r.hit1ok).length}/${n}), Top-3 포함 ${rows.filter((r) => r.hit3).length}/${n}`);
 console.log(`점검 점수 평균 ${avg((r) => r.scoreBefore)} → ${avg((r) => r.scoreAfter)} (평균 +${avg((r) => r.scoreAfter - r.scoreBefore)}), 모든 지원자 상승: ${rows.every((r) => r.scoreAfter > r.scoreBefore)}`);

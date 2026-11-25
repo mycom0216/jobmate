@@ -18,14 +18,13 @@
 //   글자 겹침으로 의미를 완벽히 판단할 수 없습니다. 그래서 근거 문장을 함께 보여 주고 사용자가 최종 판단하게 합니다.
 //   (미확인 = 서류에서 찾지 못함. 실제로는 경험이 있는데 안 썼을 수도 있으므로 "추가 기회"로 안내)
 // ─────────────────────────────────────────────────────────────────────────────
-import { JOBS } from '../knowledge/jobs.mjs';
+import { ALL_SKILLS } from '../knowledge/jobs.mjs';
 import { findSkills } from './profile.mjs';
 import { recommendJobs } from './recommend.mjs';
 import { analyzeDocs } from './profile.mjs';
 import { sentences, tokens } from './text.mjs';
 
 // 모든 직무의 역량 목록(이름 기준 중복 제거). 공고 속 기술명을 찾는 사전으로 사용합니다.
-const ALL_SKILLS = [...new Map(JOBS.flatMap((j) => [...j.core, ...j.nice]).map((s) => [s.name, s])).values()];
 
 // 공고의 구간 제목을 알아보는 패턴. 제목은 짧은 줄이라는 점을 함께 이용해 본문 문장과 구분합니다.
 const HEAD = {
@@ -84,19 +83,26 @@ const bigrams = (s) => new Set(tokens(s).filter((t) => t[0] === 'b' || t[0] === 
 
 // 항목 하나를 서류와 대조합니다. 반환: { text, kind, status, evidence, skills }
 function matchItem(text, kind, docSents, allDocText) {
+  const byText = matchByText(text, kind, docSents);
   // 같은 별칭을 여러 역량이 공유하면(예: 'sql'은 SQL의 이름이면서 '데이터 기반 의사결정'의 별칭) 공고 항목이 엉뚱한 역량으로
   // 해석됩니다. 그래서 어떤 역량이 "다른 역량의 이름"과 같은 별칭으로만 잡혔다면 그 역량은 버리고 이름이 일치하는 쪽만 씁니다.
   const hits = findSkills(text, ALL_SKILLS);
   const names = new Set(hits.map((s) => s.name.toLowerCase()));
   const skills = hits.filter((s) => s.matchedAs === s.name.toLowerCase() || !names.has(s.matchedAs)).map((s) => s.name);
-  if (skills.length) {
-    const found = new Set(findSkills(allDocText, ALL_SKILLS).map((s) => s.name));
-    const have = skills.filter((n) => found.has(n));
-    const status = have.length === skills.length ? 'met' : have.length ? 'partial' : 'missing';
-    const quote = have.length ? docSents.find((s) => findSkills(s, ALL_SKILLS).some((x) => have.includes(x.name))) ?? null : null;
-    return { text, kind, status, evidence: quote && quote.length > 110 ? quote.slice(0, 107) + '…' : quote, skills: skills.map((n) => ({ name: n, found: found.has(n) })) };
-  }
-  // 기술명이 없는 문장 항목: 바이그램 겹침이 가장 큰 서류 문장을 근거로 삼습니다.
+  if (!skills.length) return byText;
+  const found = new Set(findSkills(allDocText, ALL_SKILLS).map((s) => s.name));
+  const have = skills.filter((n) => found.has(n));
+  const status = have.length === skills.length ? 'met' : have.length ? 'partial' : 'missing';
+  const quote = have.length ? docSents.find((s) => findSkills(s, ALL_SKILLS).some((x) => have.includes(x.name))) ?? null : null;
+  const bySkill = { text, kind, status, evidence: quote && quote.length > 110 ? quote.slice(0, 107) + '…' : quote, skills: skills.map((n) => ({ name: n, found: found.has(n) })) };
+  // "채용 또는 행사 운영 경험"처럼 대안(또는)이 있는 문장은 기술 사전으로는 한쪽만 보므로, 문장 겹침 판정이 더 좋으면 그쪽을 채택합니다.
+  // 단, 기술 태그(✔/＋)는 그대로 보여 줘 사용자가 무엇이 비었는지 알 수 있게 합니다.
+  const rank = { met: 3, partial: 2, missing: 1, unknown: 0 };
+  return rank[byText.status] > rank[bySkill.status] ? { ...byText, skills: bySkill.skills } : bySkill;
+}
+
+// 기술명이 없는(또는 기술 판정을 보완할) 문장 항목: 바이그램 겹침이 가장 큰 서류 문장을 근거로 삼습니다.
+function matchByText(text, kind, docSents) {
   const q = bigrams(text);
   if (q.size < 3) return { text, kind, status: 'unknown', evidence: null, skills: [] };
   let best = { score: 0, sent: null };

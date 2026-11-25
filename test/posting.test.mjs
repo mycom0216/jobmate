@@ -93,3 +93,11 @@ test('모의 평가에서 발견한 결함: "SQL 활용 능력" 항목이 SQL이
   assert.deepEqual(sql.skills.map((s) => s.name), ['SQL']);
   assert.equal(r.required.find((i) => i.text.includes('GA')).skills.find((s) => s.name === 'GA').found, true); // 구글 애널리틱스 = GA
 });
+
+test('모의 평가에서 발견한 결함: "채용 또는 행사 운영 경험"처럼 대안이 있는 항목은 한쪽 경험만 있어도 미충족으로 단정하지 않는다', async () => {
+  const sub = await app.analyze('posting-user-5', '학생회 운영진 2년. 신입 부원 서류 평가와 면접을 운영하고 신입생 온보딩 행사를 기획해 참여 인원 180명을 모았습니다. 학생 면담으로 의견을 조율했습니다.', '조직이 오래 가려면 구성원이 편안해야 한다고 생각합니다. 공정한 평가 기준표를 만들어 선발했습니다.');
+  const r = await app.posting('posting-user-5', sub.submissionId, '인사 담당자\n자격 요건\n- 채용 또는 행사 운영 경험\n- 커뮤니케이션 및 조율 능력\n- 엑셀 활용 능력');
+  assert.notEqual(r.required.find((i) => i.text.includes('행사')).status, 'missing');
+  assert.equal(r.required.find((i) => i.text.includes('커뮤니케이션')).skills.find((s) => s.name === '커뮤니케이션').found, true);
+  assert.equal(r.required.find((i) => i.text.includes('엑셀')).status, 'missing'); // 없는 것은 여전히 없다고 말한다
+});

@@ -12,7 +12,7 @@
 //   LLM 경로 : 원문 + RAG가 찾은 직무 가이드를 근거로 문장을 자연스럽게 재작성(품질↑)
 //   규칙 경로: LLM이 없거나 검증에 실패하면 "빈칸 채우기 틀"을 제공(항상 동작, 환각 0)
 // ─────────────────────────────────────────────────────────────────────────────
-import { JOBS } from '../knowledge/jobs.mjs';
+import { ALL_SKILLS } from '../knowledge/jobs.mjs';
 import { jobById } from './kb.mjs';
 import { findSkills, isQuantified } from './profile.mjs';
 import { sentences } from './text.mjs';
@@ -20,7 +20,6 @@ import { sentences } from './text.mjs';
 const MAX_TARGETS = 5; // 한 번에 고칠 문장 수 상한(비용·응답 시간 제한 + 사용자가 한 번에 소화할 수 있는 분량)
 
 // 모든 직무의 역량 목록(LLM이 원문에 없는 기술을 끼워 넣었는지 검사하는 기준 사전)
-const ALL_SKILLS = [...new Map(JOBS.flatMap((j) => [...j.core, ...j.nice]).map((s) => [s.name, s])).values()];
 
 // 수정 대상 문장 고르기: ① 상투적 표현 문장  ② 행동은 있는데 수치가 없는 문장
 export function pickTargets(docs) {
@@ -75,7 +74,9 @@ export function validateRewrite(output, original, allowedText) {
 export function ruleRewrite(target, job, docs) {
   const have = findSkills(docs.all, job.core).map((x) => x.name);
   // 문서에 실제로 있는 기술만 추천합니다(없는 기술을 쓰라고 강요하면 사실과 달라질 수 있음)
-  const how = have.length ? `${have[0]}를 활용해 ` : '[사용한 기술·방법]으로 ';
+  // '고객 응대' 같은 업무 역량은 "활용"할 도구가 아니므로(어색한 문장이 되고, 원문에 없는 표현을 끼워 넣게 됨) 영문 기술 이름만 씁니다.
+  const tool = have.find((n) => /^[A-Za-z][\w.#+/ -]*$/u.test(n));
+  const how = tool ? `${tool}을(를) 활용해 ` : '[사용한 도구·방법]으로 ';
   if (target.issue.startsWith('막연한')) {
     return `[프로젝트·활동명]에서 ${how}[내가 직접 한 행동]을 했고, 그 결과 [지표]를 [이전 값]에서 [이후 값]으로 [개선]했습니다.`;
   }

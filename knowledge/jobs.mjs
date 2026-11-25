@@ -221,3 +221,16 @@ export const GENERAL_GUIDES = [
   { id: 'GEN-07', title: '분량과 문단 구성', text: '자기소개서 한 문항은 보통 500~1,000자 안팎이 읽기 좋습니다. 문항마다 하나의 핵심 메시지를 정해 첫 문장에서 결론을 말하고, 나머지는 근거 사례로 채웁니다. 너무 짧으면 근거가 부족하고 너무 길면 핵심이 흐려집니다.' },
   { id: 'GEN-08', title: '사실만 쓰고 검증 가능하게', text: '이력서와 자기소개서의 모든 내용은 면접에서 질문 대상이 됩니다. 실제로 한 일만 쓰고, 사용한 기술은 설명할 수 있는 수준까지만 적으세요. 보완 과정에서 AI가 제안한 문장도 사실과 다르면 쓰지 말고 반드시 본인 경험에 맞게 고쳐야 합니다.' },
 ];
+
+// 모든 직무의 역량을 "이름 기준으로 합친" 목록. 같은 이름의 역량(예: '커뮤니케이션')이 여러 직무에 있고 직무마다 별칭이 다르므로
+// 별칭을 합집합으로 모읍니다. (Map에 이름을 키로 그냥 넣으면 마지막 직무의 별칭만 남고 나머지가 사라지는 결함이 있었습니다.)
+// 공고 점검(posting.mjs)과 AI 제안 검증(revise.mjs)이 "문서·문장에 이 역량이 있는가"를 판단하는 공통 사전입니다.
+export const ALL_SKILLS = (() => {
+  const merged = new Map();
+  for (const sk of JOBS.flatMap((j) => [...j.core, ...j.nice])) {
+    const cur = merged.get(sk.name);
+    if (cur) cur.aliases = [...new Set([...cur.aliases, ...sk.aliases])];
+    else merged.set(sk.name, { name: sk.name, aliases: [...sk.aliases] });
+  }
+  return [...merged.values()];
+})();
