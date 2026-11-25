@@ -80,6 +80,14 @@ def convert(src, dst):
                 i += 1
             t = doc.add_table(rows=len(rows), cols=len(rows[0]))
             t.style = "Table Grid"
+            # 열 너비를 내용 길이에 비례해 정하고 합계를 본문 폭(약 17cm) 안에 맞춥니다.
+            # 모든 열을 같은 폭으로 두면 긴 문장 열은 좁아져 읽기 어렵고, 표가 여백 밖으로 약간 삐져나옵니다.
+            t.autofit = False
+            weights = [min(max(len(re.sub(r"[*`]", "", row[c])) for row in rows), 40) + 6 for c in range(len(rows[0]))]
+            total = sum(weights)
+            for c, wt in enumerate(weights):
+                for r in range(len(rows)):
+                    t.cell(r, c).width = Cm(16.6 * wt / total)
             for r, row in enumerate(rows):
                 for c, txt in enumerate(row):
                     cell = t.cell(r, c)
