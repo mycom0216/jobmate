@@ -7,7 +7,7 @@
 ![ERD](images/erd.png)
 
 - 파란색: 사용자 데이터 / 초록색: 기준 데이터(앱 시작 시 `jobs.mjs`와 동기화, UPSERT).
-- 관계: users 1:N submissions · feedback / submissions 1:N recommendations · reviews / reviews 1:N review_items · revisions / job_profiles 1:N job_skills · kb_chunks · recommendations · reviews / kb_chunks 1:N review_items(근거 가이드).
+- 관계: users 1:N submissions · feedback / submissions 1:N recommendations · reviews · posting_checks / reviews 1:N review_items · revisions / job_profiles 1:N job_skills · kb_chunks · recommendations · reviews / kb_chunks 1:N review_items(근거 가이드).
 - 외래키는 `PRAGMA foreign_keys = ON`으로 강제.
 
 ## 2. 테이블 목록
@@ -23,6 +23,7 @@
 | reviews | 점검 결과 | 사용자 | 제출·직무별 점수 |
 | review_items | 점검 항목 | 사용자 | 8개 항목 상세 |
 | revisions | 보완 제안 | 사용자 | 원문→제안 문장 |
+| posting_checks | 공고 점검 | 사용자 | 채용 공고 요건 대조 결과(공고 원문은 마스킹 후 저장) |
 | feedback | 피드백 | 사용자 | 👍/👎 |
 
 ## 3. 테이블 정의
@@ -110,7 +111,19 @@
 | method | TEXT | NN, CHECK llm/rule | 생성 방식 |
 | created_at | TEXT | NN | |
 
-### 3.10 feedback
+### 3.10 posting_checks
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| posting_id | INTEGER | PK AI | |
+| submission_id | INTEGER | NN, FK→submissions | 어느 제출 서류와 대조했는지 |
+| job_id | TEXT | FK→job_profiles | 공고와 가장 가까운 직무 |
+| posting_text | TEXT | NN | 공고 원문(연락처 마스킹 후) |
+| required_rate | INTEGER | | 필수 요건 충족도(%), 해당 없으면 NULL |
+| preferred_rate | INTEGER | | 우대 요건 충족도(%) |
+| result | TEXT | NN | 항목별 상세 결과(JSON) |
+| created_at | TEXT | NN | |
+
+### 3.11 feedback
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | feedback_id | INTEGER | PK AI | |
@@ -121,7 +134,7 @@
 | created_at | TEXT | NN | |
 
 ## 4. 인덱스
-`idx_sub_user(submissions.user_id)`, `idx_rec_sub`, `idx_rev_sub`, `idx_item_rev` — 사용자·제출 기준 조회가 잦아 추가.
+`idx_sub_user(submissions.user_id)`, `idx_rec_sub`, `idx_rev_sub`, `idx_item_rev`, `idx_post_sub` — 사용자·제출 기준 조회가 잦아 추가.
 
 ## 5. 데이터 관리 정책
 | 항목 | 정책 |

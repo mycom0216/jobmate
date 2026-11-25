@@ -10,6 +10,7 @@
 //   POST /api/analyze           ①문서 제출 → 직무 추천
 //   POST /api/review            ②선택 직무 기준 점검
 //   POST /api/revise            ③문장 보완 제안
+//   POST /api/posting           ★채용 공고 요건 대조 점검
 //   POST /api/feedback          추천·점검·제안이 도움이 됐는지 평가
 //   GET  /api/history?userId=   내 기록(점검 점수 변화)
 //   GET  /api/stats             운영 지표
@@ -101,6 +102,11 @@ export function createHandler(svc, { sampleFile = join(ROOT, 'samples', 'demo.js
       const b = await readBody(req, 2000);
       const userId = userOf(b.userId); throttle(userId);
       return json(res, 200, await svc.revise(userId, intOf(b.reviewId, 'reviewId'), b.useLlm !== false));
+    }
+    if (m === 'POST' && p === '/api/posting') {
+      const b = await readBody(req, 30000);
+      const userId = userOf(b.userId); throttle(userId);
+      return json(res, 200, await svc.posting(userId, intOf(b.submissionId, 'submissionId'), b.posting));
     }
     if (m === 'POST' && p === '/api/feedback') {
       const b = await readBody(req, 1000);

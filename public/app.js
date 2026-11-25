@@ -43,6 +43,7 @@ function step(n) {
     li.className = s === n ? 'on' : s < n ? 'done' : '';
   });
   for (let i = 2; i <= 4; i++) $('p' + i).classList.toggle('hidden', i > n);
+  $('pPost').classList.toggle('hidden', n < 2); // 추천이 끝나면 공고 점검 칸도 열림
 }
 
 // 버튼 하나를 "처리 중" 상태로 잠그고 작업을 실행합니다(중복 클릭 방지 + 오류 표시).
@@ -130,6 +131,28 @@ $('fix').addEventListener('click', () => busy($('fix'), $('err3'), async () => {
   $('revCover').textContent = r.revisedCover || '(자기소개서 없음)';
   step(4);
 }, 'AI가 문장을 다듬고 검증하는 중… (AI가 연결된 경우 최대 1분 정도 걸릴 수 있습니다)'));
+
+// ── 공고 점검 ─────────────────────────────────────────────────────────
+const ST = { met: ['충족', 'ok'], partial: ['부분', 'mid'], missing: ['서류에서 못 찾음', 'high'], unknown: ['판단 불가', 'mid'] };
+$('postGo').addEventListener('click', () => busy($('postGo'), $('errPost'), async () => {
+  const r = await api('/api/posting', { submissionId: state.submissionId, posting: $('posting').value });
+  const rate = (v) => (v === null ? '해당 없음' : v + '%');
+  const row = (i) => h('div', { class: 'item ' + ST[i.status][1] },
+    h('div', { class: 't' }, h('span', {}, i.text), h('span', {}, ST[i.status][0])),
+    i.skills.length ? h('div', {}, i.skills.map((s) => h('span', { class: 'tag' + (s.found ? '' : ' miss') }, (s.found ? '✔ ' : '＋ ') + s.name))) : null,
+    i.evidence ? h('div', { class: 'q' }, '“' + i.evidence + '”') : null);
+  const group = (title, arr) => arr.length ? [h('h3', {}, title), ...arr.map(row)] : [];
+  $('postRes').replaceChildren(
+    h('div', { class: 'scoreRow' },
+      h('div', { class: 'score', style: 'background:' + color(r.rates.required ?? 0) }, rate(r.rates.required)),
+      h('div', {}, h('h2', {}, `필수 요건 충족도 · 우대 ${rate(r.rates.preferred)}`),
+        h('div', { class: 'muted' }, `공고와 가장 가까운 직무: ${r.jobGuess.name} (적합도 ${r.jobGuess.fit}점) — 위 선택 칸에서 이 직무로 점검하면 서류 품질까지 볼 수 있습니다.`))),
+    ...r.conditions.map((c) => h('div', { class: 'notice' }, `${c.type}: ${c.text} — ${c.note}`)),
+    ...group('자격요건(필수)', r.required), ...group('우대사항', r.preferred), ...group('담당업무(참고: 관련 경험 문장 찾기)', r.duty),
+    ...r.advice.map((a) => h('div', { class: 'item mid' }, '👉 ' + a)),
+    h('div', { class: 'small' }, r.note));
+  $('postRes').classList.remove('hidden');
+}));
 
 // ── 내 기록 ───────────────────────────────────────────────────────────
 async function loadHistory() {

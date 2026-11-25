@@ -18,13 +18,14 @@ import { Retriever } from './rag.mjs';
 import { recommendJobs } from './recommend.mjs';
 import { reviseDocs } from './revise.mjs';
 import { reviewDocs } from './review.mjs';
+import { checkPosting } from './posting.mjs';
 import { maskPII } from './text.mjs';
 import { HttpError } from './errors.mjs';
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // 입력 한도: 너무 긴 입력은 처리 시간·외부 LLM 비용·악용(서비스 거부) 위험을 키웁니다.
-export const LIMITS = { minChars: 80, maxChars: 12000 };
+export const LIMITS = { minChars: 80, maxChars: 12000, postingMin: 40, postingMax: 8000 };
 
 export async function createApp({ dbFile = join(ROOT, 'data', 'jobmate.db'), env = process.env, llm, useEmbeddings = env.EMBEDDINGS === 'on' } = {}) {
   if (dbFile !== ':memory:') mkdirSync(dirname(dbFile), { recursive: true });
@@ -71,6 +72,19 @@ export async function createApp({ dbFile = join(ROOT, 'data', 'jobmate.db'), env
       const review = await reviewDocs(docs, jobId, retriever);
       review.reviewId = store.saveReview(submissionId, review);
       return review;
+    },
+
+    // 공고 기반 점검: 채용 공고 텍스트의 요건과 내 서류를 대조 (제출 건에 연결해 저장)
+    async posting(userId, submissionId, postingText) {
+      const sub = store.getSubmission(submissionId, userId);
+      if (!sub) throw new HttpError(404, '제출한 문서를 찾을 수 없습니다.');
+      // 공고는 공개 문서이지만, 붙여 넣는 과정에서 담당자 연락처가 섞일 수 있어 같은 마스킹을 적용합니다.
+      const text = maskPII(String(postingText ?? '')).masked.trim();
+      if (text.length < LIMITS.postingMin) throw new HttpError(400, `채용 공고 내용이 너무 짧습니다. ${LIMITS.postingMin}자 이상 붙여 넣어 주세요.`);
+      if (text.length > LIMITS.postingMax) throw new HttpError(413, `채용 공고는 ${LIMITS.postingMax}자 이하로 붙여 넣어 주세요.`);
+      const result = await checkPosting(analyzeDocs({ resume: sub.resume_text, cover: sub.cover_text }), text, retriever);
+      result.postingId = store.savePosting(submissionId, text, result);
+      return result;
     },
 
     // 3단계: 보완 제안(문장 재작성) — 점검 결과(reviewId)에 연결해 저장

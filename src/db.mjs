@@ -5,9 +5,9 @@
 //   서버 설치 없이 파일 하나로 동작하고, Node.js 24 내장 모듈(node:sqlite)이라 npm 설치도 필요 없습니다.
 //   개인 프로젝트·시연 규모(동시 사용자 소수)에 충분하고, 나중에 PostgreSQL 등으로 옮기기 쉬운 표준 SQL을 썼습니다.
 //
-// [테이블 구성 — 10개]
+// [테이블 구성 — 11개]
 //   기준 데이터(앱 시작 시 코드에서 동기화): job_profiles, job_skills, kb_chunks
-//   사용자 데이터: users → submissions → recommendations / reviews → review_items / revisions, feedback
+//   사용자 데이터: users → submissions → recommendations / reviews → review_items / revisions / posting_checks, feedback
 //
 // [개인정보 처리 원칙]
 //   submissions에는 "마스킹된 텍스트"만 저장합니다(전화·이메일·주민번호는 저장 전에 [ ]로 치환).
@@ -61,6 +61,12 @@ CREATE TABLE IF NOT EXISTS revisions (
   original TEXT NOT NULL, issue TEXT NOT NULL, suggestion TEXT NOT NULL,
   method TEXT NOT NULL CHECK (method IN ('llm','rule')), created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS posting_checks (
+  posting_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  submission_id INTEGER NOT NULL REFERENCES submissions(submission_id) ON DELETE CASCADE,
+  job_id TEXT REFERENCES job_profiles(job_id), posting_text TEXT NOT NULL,
+  required_rate INTEGER, preferred_rate INTEGER, result TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS feedback (
   feedback_id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
@@ -71,6 +77,7 @@ CREATE INDEX IF NOT EXISTS idx_sub_user ON submissions(user_id);
 CREATE INDEX IF NOT EXISTS idx_rec_sub ON recommendations(submission_id);
 CREATE INDEX IF NOT EXISTS idx_rev_sub ON reviews(submission_id);
 CREATE INDEX IF NOT EXISTS idx_item_rev ON review_items(review_id);
+CREATE INDEX IF NOT EXISTS idx_post_sub ON posting_checks(submission_id);
 `;
 
 // 파일 경로를 주면 파일 DB, 생략하면 메모리 DB(테스트용: 끝나면 사라져 테스트끼리 간섭 없음)
@@ -153,6 +160,13 @@ export class Store {
                             WHERE r.review_id=? AND s.user_id=?`).get(reviewId, userId) ?? null;
   }
 
+  // 공고 점검 결과 저장: 공고 원문과 요약 비율, 상세 결과(JSON)를 제출 건에 연결해 둡니다.
+  savePosting(submissionId, postingText, result) {
+    const r = this.db.prepare('INSERT INTO posting_checks(submission_id,job_id,posting_text,required_rate,preferred_rate,result,created_at) VALUES(?,?,?,?,?,?,?)')
+      .run(submissionId, result.jobGuess.jobId, postingText, result.rates.required, result.rates.preferred, JSON.stringify(result), now());
+    return Number(r.lastInsertRowid);
+  }
+
   saveFeedback(userId, type, id, helpful) {
     this.ensureUser(userId);
     this.db.prepare('INSERT INTO feedback(user_id,target_type,target_id,helpful,created_at) VALUES(?,?,?,?,?)').run(userId, type, id, helpful ? 1 : 0, now());
@@ -165,6 +179,7 @@ export class Store {
       submissionId: s.submission_id, createdAt: s.created_at, chars: s.chars,
       top: this.db.prepare('SELECT job_id, fit FROM recommendations WHERE submission_id=? AND rank=1').get(s.submission_id) ?? null,
       reviews: this.db.prepare('SELECT review_id, job_id, score, grade, created_at FROM reviews WHERE submission_id=? ORDER BY review_id').all(s.submission_id),
+      postings: this.db.prepare('SELECT posting_id, job_id, required_rate, preferred_rate, created_at FROM posting_checks WHERE submission_id=? ORDER BY posting_id').all(s.submission_id),
     }));
   }
 

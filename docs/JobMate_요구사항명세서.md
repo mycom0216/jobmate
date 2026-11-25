@@ -13,6 +13,7 @@
 | FR-05 | 근거 표시 | 추천·점검 항목·보완마다 청크 ID·제목, 직무 가이드 열람 API | M | 점검 항목 전부 guide.id 존재 | rag.mjs, review.mjs | 완료 |
 | FR-06 | 기록 | 제출별 1순위 직무, 점검 점수 이력 | S | 분석→점검 후 history에 반영 | db.mjs history | 완료 |
 | FR-07 | 피드백·지표 | 추천·점검·보완 👍/👎, 제출 수·평균 점수·AI 채택률·도움됨 비율 | C | feedback 저장, stats 반영 | db.mjs stats | 완료 |
+| FR-09 | 채용 공고 기반 점검 | 공고 텍스트(최대 8,000자)를 붙여 넣으면 자격요건·우대사항·담당업무를 구분(제목 없으면 전부 필수로 간주해 안내)하고, 항목마다 서류와 대조해 충족/부분/서류에서 못 찾음 + 근거 문장 표시. 필수·우대 충족도(%), 공고와 가까운 직무, 서류에 없는 요구 기술, 학력·경력 조건 안내(자동 판단 불가는 '확인 필요/미충족 가능'). 규칙 기반(LLM·외부 전송 없음), 공고 속 연락처 마스킹 | S | 기술 충족/미충족 판정, 학력 조건 안내, 파싱, 입력 오류 400·타인 제출 404, 연락처 마스킹 | posting.mjs | 완료 |
 | FR-08 | 직무 직접 선택·샘플 | 추천과 무관하게 13종 중 선택, 샘플 불러오기 | S | 선택 직무로 점검 수행 | app.js | 완료 |
 
 ## 2. 비기능 요구사항
@@ -25,7 +26,7 @@
 | NFR-04 | 개인정보 | 마스킹 저장, 익명 ID, 기본 127.0.0.1 바인딩, 키 로그 비노출 | M | 마스킹·키 비노출 테스트 | 완료 |
 | NFR-05 | 신뢰성 | 점검·항목 저장 트랜잭션, 같은 DB로 재시작 가능, 외래키 강제 | S | 재시작 회귀 테스트 | 완료 |
 | NFR-06 | 설치성 | Node.js 24+ 만 필요, `시작하기.cmd` 또는 `npm start` | M | 클린 실행 | 완료 |
-| NFR-07 | 유지보수성 | 파일마다 목적·이유 주석, 지식베이스 분리(jobs.mjs), 테스트 26개 | S | 코드 리뷰 | 완료 |
+| NFR-07 | 유지보수성 | 파일마다 목적·이유 주석, 지식베이스 분리(jobs.mjs), 테스트 32개 | S | 코드 리뷰 | 완료 |
 | NFR-08 | 정확성 | AI 제안의 숫자·기술명이 원문에 있는 것만 허용 | M | guard 단위 테스트 | 완료 |
 
 ## 3. 인터페이스 명세(API)
@@ -35,12 +36,13 @@
 | POST /api/analyze | userId, resume, cover | submissionId, recommendations[3], confidence, pii, summary | 400, 413, 429 |
 | POST /api/review | userId, submissionId, jobId | reviewId, score, grade, items[8], strengths | 400, 404 |
 | POST /api/revise | userId, reviewId, useLlm | suggestions[≤5], revisedResume/Cover, warning | 404 |
+| POST /api/posting | userId, submissionId, posting | postingId, rates{required,preferred}, required/preferred/duty[], conditions[], missingSkills, jobGuess, advice | 400, 404, 413 |
 | POST /api/feedback | userId, type, targetId, helpful | ok | 400 |
 | GET /api/history?userId= | – | 제출·점검 이력 | 400 |
 | GET /api/stats · /api/status · /api/jobs · /api/jobs/guide · /api/kb/search · /api/sample | – | 지표·상태·직무·가이드·검색·샘플 | 404 |
 
 ## 4. 데이터 요구사항
-데이터정의서 참조(테이블 10개). 개인정보는 마스킹된 텍스트만 저장.
+데이터정의서 참조(테이블 11개). 개인정보는 마스킹된 텍스트만 저장.
 
 ## 5. 검증 매핑
 각 요구사항의 자동 테스트는 `test/jobmate.test.mjs`에서 테스트 이름 앞에 FR/NFR ID를 붙여 대응합니다. 추천 정확도는 `node tools/eval.mjs`로 측정합니다.

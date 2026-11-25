@@ -28,7 +28,7 @@ export const JOBS = [
   {
     id: 'backend', name: '백엔드 개발자',
     summary: '서버·API·데이터베이스를 설계하고 안정적으로 운영하는 개발 직무',
-    core: [S('Java', '자바'), S('Spring', '스프링', 'spring boot', '스프링부트'), S('REST API', 'rest', 'restful', 'api 설계', 'api 개발'), S('SQL', 'mysql', 'postgresql', 'oracle', '쿼리'), S('데이터베이스', 'db 설계', 'erd', '데이터 모델링', 'rdbms'), S('Git', '깃', 'github', '깃허브'), S('Node.js', 'nodejs', 'express', 'nestjs', '노드'), S('Python', '파이썬', 'django', 'fastapi', 'flask')],
+    core: [S('Java', '자바'), S('Spring', '스프링', 'spring boot', '스프링부트'), S('REST API', 'rest', 'restful', 'api 설계', 'api 개발'), S('SQL', 'mysql', 'postgresql', 'oracle', '쿼리'), S('데이터베이스', 'db 설계', 'erd', '데이터 모델링', 'rdbms', 'mysql', 'postgresql', 'oracle'), S('Git', '깃', 'github', '깃허브'), S('Node.js', 'nodejs', 'express', 'nestjs', '노드'), S('Python', '파이썬', 'django', 'fastapi', 'flask')],
     nice: [S('Docker', '도커'), S('Redis', '레디스', '캐시'), S('AWS', '클라우드'), S('테스트 코드', 'junit', '단위 테스트', 'jest'), S('CI/CD', 'github actions', 'jenkins'), S('JPA', 'hibernate', 'orm')],
     verbs: ['설계', '구현', '개발', '최적화', '운영', '장애', '성능', '트랜잭션', '배포'],
     guide: {
