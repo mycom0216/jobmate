@@ -8,7 +8,7 @@ from pptx.chart.data import CategoryChartData
 from pptx.dml.color import RGBColor
 from pptx.enum.chart import XL_CHART_TYPE, XL_LABEL_POSITION
 from pptx.enum.shapes import MSO_SHAPE
-from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.enum.text import MSO_ANCHOR, MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Inches, Pt
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -24,11 +24,28 @@ BLANK = prs.slide_layouts[6]
 N = 15
 
 
+import math
+
+WARNINGS = []
+
+
+def estimate_height_pt(lines, width_in, size, safety=1.2):
+    """글상자에 글이 몇 pt 높이로 들어갈지 어림합니다(한글 1자≈글자 크기, 영문·숫자≈0.55배, 폭 안전계수 1.2).
+    PowerPoint와 다른 프로그램(Keynote, Google 슬라이드, WPS)은 글꼴이 달라 줄바꿈이 더 많아질 수 있어 여유를 둡니다."""
+    avail = width_in * 72 - 14.4  # 기본 좌우 여백 0.1in씩
+    total = 7.2  # 위아래 여백
+    for ln in lines:
+        w = sum(size * (1.0 if ord(c) > 0x2E80 else 0.55 if c != " " else 0.3) for c in ln) * safety
+        total += max(1, math.ceil(w / avail)) * size * 1.3 + 4
+    return total
+
+
 def text(slide, x, y, w, h, s, size=18, bold=False, color=INK, align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP):
     tb = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
     tf.vertical_anchor = anchor
+    tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
     for i, ln in enumerate(s if isinstance(s, list) else [s]):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.alignment = align
@@ -37,6 +54,9 @@ def text(slide, x, y, w, h, s, size=18, bold=False, color=INK, align=PP_ALIGN.LE
         r.font.size, r.font.bold, r.font.name = Pt(size), bold, FONT
         r.font.color.rgb = color
         p.space_after = Pt(4)
+    need = estimate_height_pt(s if isinstance(s, list) else [s], w, size)
+    if need > h * 72 + 1:
+        WARNINGS.append(f"슬라이드 {len(prs.slides)}: 글상자 높이 부족 가능(필요 약 {need:.0f}pt > {h * 72:.0f}pt) : {(s if isinstance(s, str) else s[0])[:28]}")
     return tb
 
 
@@ -68,8 +88,8 @@ def base(title, n, notes=""):
     s.background.fill.fore_color.rgb = RGBColor(0xF7, 0xF9, 0xFD)
     box(s, 0, 0, 13.333, 0.12, BRAND, None, MSO_SHAPE.RECTANGLE)
     text(s, 0.6, 0.35, 12, 0.8, title, 30, True)
-    text(s, 12.0, 7.0, 1.0, 0.3, f"{n} / {N}", 11, False, MUTED, PP_ALIGN.RIGHT)
-    text(s, 0.6, 7.0, 8, 0.3, "JobMate · RAG 기반 직무 추천 및 이력서·자기소개서 점검", 11, False, MUTED)
+    text(s, 12.0, 6.98, 1.0, 0.4, f"{n} / {N}", 11, False, MUTED, PP_ALIGN.RIGHT)
+    text(s, 0.6, 6.98, 8, 0.4, "JobMate · RAG 기반 직무 추천 및 이력서·자기소개서 점검", 11, False, MUTED)
     if notes:
         s.notes_slide.notes_text_frame.text = notes
     return s
@@ -86,31 +106,31 @@ def pic(slide, name, x, y, w=None, h=None):
 s = prs.slides.add_slide(BLANK)
 s.background.fill.solid()
 s.background.fill.fore_color.rgb = BRAND
-text(s, 0.9, 2.0, 11, 1.2, "JobMate", 60, True, WHITE)
-text(s, 0.9, 3.25, 11.8, 1.0, "RAG 기반 직무 추천 및 이력서·자기소개서 점검·보완 시스템", 30, False, WHITE)
-text(s, 0.9, 4.5, 11.5, 0.5, "근거를 보여 주고, 없는 경력은 지어내지 않는 취업 서류 도우미", 18, False, RGBColor(0xDB, 0xE7, 0xFF))
+text(s, 0.9, 1.7, 11, 1.5, "JobMate", 60, True, WHITE)
+text(s, 0.9, 3.25, 11.8, 1.3, "RAG 기반 직무 추천 및 이력서·자기소개서 점검·보완 시스템", 28, False, WHITE)
+text(s, 0.9, 4.8, 11.5, 0.6, "근거를 보여 주고, 없는 경력은 지어내지 않는 취업 서류 도우미", 18, False, RGBColor(0xDB, 0xE7, 0xFF))
 text(s, 0.9, 6.3, 11.5, 0.5, "인공지능 응용 시스템 개발 종합 프로젝트 · 기획서 2026.12.04 · 발표 2026.12.30 · 반재영", 14, False, RGBColor(0xDB, 0xE7, 0xFF))
 s.notes_slide.notes_text_frame.text = "안녕하세요. 이력서와 자기소개서를 분석해 어울리는 직무를 추천하고 직무에 맞게 점검·보완해 주는 JobMate를 소개하겠습니다."
 
 # 2 문제
 s = base("왜 만들었나: 서류를 쓰고도 확신이 없다", 2, "직무 방향과 문서 품질을 객관적으로 확인하기 어렵고, 일반 챗봇은 없는 경험을 지어낼 위험이 있어 면접에서 문제가 됩니다.")
-card(s, 0.6, 1.5, 3.9, 2.6, "① 어떤 직무가 맞지?", "전공·경험은 있는데 직무 이름과 연결하지 못합니다.")
-card(s, 4.7, 1.5, 3.9, 2.6, "② 문서가 그 직무에 맞나?", "경험만 나열하고 직무 역량·성과 수치·내가 한 일이 안 보여도 스스로 알기 어렵습니다.", WARN)
-card(s, 8.8, 1.5, 3.9, 2.6, "③ AI 첨삭은 믿어도 되나?", "없는 경력·수치를 그럴듯하게 만들어 내면 면접에서 거짓이 드러납니다.", BAD)
-box(s, 0.6, 4.6, 12.1, 1.7, BRAND)
-text(s, 0.9, 4.75, 11.5, 0.5, "해결 방향", 18, True, WHITE)
-text(s, 0.9, 5.3, 11.5, 0.9, ["직무 추천 → 직무 기준 점검 → 문장 보완, 모든 조언에 근거(출처) 표시", "AI 제안은 원문에 없는 숫자·기술이 있으면 폐기"], 17, False, WHITE)
+card(s, 0.6, 1.5, 3.9, 2.4, "① 어떤 직무가 맞지?", "전공·경험은 있는데 직무 이름과 연결하지 못합니다.", BRAND, 17, 15)
+card(s, 4.7, 1.5, 3.9, 2.4, "② 문서가 그 직무에 맞나?", "경험만 나열하면 직무 역량·성과 수치·내가 한 일이 안 보여도 스스로 알기 어렵습니다.", WARN, 17, 15)
+card(s, 8.8, 1.5, 3.9, 2.4, "③ AI 첨삭은 믿어도 되나?", "없는 경력·수치를 그럴듯하게 만들어 내면 면접에서 거짓이 드러납니다.", BAD, 17, 15)
+box(s, 0.6, 4.3, 12.1, 2.1, BRAND)
+text(s, 0.9, 4.5, 11.5, 0.55, "해결 방향", 20, True, WHITE)
+text(s, 0.9, 5.15, 11.5, 1.1, ["직무 추천 → 직무 기준 점검 → 문장 보완, 모든 조언에 근거(출처) 표시", "AI 제안은 원문에 없는 숫자·기술이 있으면 폐기"], 17, False, WHITE)
 
 # 3 기능
 s = base("핵심 기능 5가지", 3, "추천, 점검, 보완, 근거 표시가 하나의 흐름으로 이어집니다.")
-feats = [("직무 추천 Top 3", "역량 사전 + RAG 검색 + 행동어로 적합도·보유/부족 역량·신뢰도 제시", BRAND),
-         ("8항목 점검(100점)", "핵심 역량·정량 성과·STAR·직무 연결·주도성·상투 표현·구성·분량, 문제 문장을 원문 인용", OK),
-         ("보완 제안", "AI 재작성 후 검증 통과분만 채택, 아니면 빈칸 채우기 틀", WARN),
-         ("근거 표시(RAG)", "추천·점검·보완마다 참고한 지식 청크 ID·제목 표시", BRAND),
-         ("채용 공고 점검", "공고의 자격요건·우대사항을 서류와 한 줄씩 대조, 학력·경력 조건 안내", WARN)]
+feats = [("직무 추천 Top 3", "역량 사전 + RAG 검색 + 행동어로 적합도, 보유·부족 역량, 신뢰도를 제시", BRAND),
+         ("8항목 점검(100점)", "핵심 역량·정량 성과·STAR·직무 연결·주도성·상투 표현·구성·분량, 문제 문장은 원문 인용", OK),
+         ("보완 제안", "AI 재작성 후 검증을 통과한 것만 채택, 아니면 빈칸 채우기 틀", WARN),
+         ("근거 표시(RAG)", "추천·점검·보완마다 참고한 지식 청크의 ID와 제목을 표시", BRAND),
+         ("채용 공고 점검", "공고의 자격요건·우대사항을 서류와 한 줄씩 대조, 학력·경력 조건 안내", WARN),
+         ("기술 스택", "Node.js 24 · SQLite · BM25(+임베딩) · Claude / ChatGPT / Ollama 선택 · 외부 npm 패키지 0개", MUTED)]
 for i, (t, b, c) in enumerate(feats):
-    card(s, 0.6 + (i % 2) * 6.15, 1.35 + (i // 2) * 1.8, 5.95, 1.6, t, b, c, 18, 13)
-text(s, 0.6, 6.62, 12, 0.35, "기술: Node.js 24 · SQLite · BM25(+임베딩) · Claude / ChatGPT / Ollama 선택 · 외부 npm 패키지 0개", 14, False, MUTED)
+    card(s, 0.6 + (i % 2) * 6.15, 1.4 + (i // 2) * 1.85, 5.95, 1.7, t, b, c, 18, 14)
 
 # 4 화면 추천
 s = base("① 직무 추천 화면", 4, "샘플 문서를 넣으면 개인정보를 가리고 Top 3를 보여 줍니다. 카드에는 적합도, 보유·부족 역량, 이유와 근거 청크가 있습니다. 직무는 직접 선택할 수도 있습니다.")
@@ -121,17 +141,17 @@ card(s, 8.9, 5.3, 3.9, 1.5, "개인정보 마스킹", "전화·이메일·주민
 
 # 5 화면 점검
 s = base("② 직무 맞춤 점검 화면", 5, "점수만 주지 않고 문제가 된 원문 문장을 인용하고 고치는 방법과 근거 가이드를 보여 줍니다.")
-pic(s, "crop-review.png", 0.6, 1.4, w=7.6)
-card(s, 8.5, 1.5, 4.3, 1.7, "문장 단위 근거", "'열심히', '성실하게' 같은 문장을 그대로 인용해 보여 줍니다", BAD, 16, 13)
-card(s, 8.5, 3.4, 4.3, 1.7, "고치는 방법", "수치 넣기, 결과 보강, 내가 한 일 중심으로", WARN, 16, 13)
-card(s, 8.5, 5.3, 4.3, 1.5, "출처 표시", "항목마다 근거 가이드(GEN-05 등)", BRAND, 16, 13)
+pic(s, "crop-review.png", 0.6, 1.4, w=6.1)
+card(s, 6.9, 1.5, 5.8, 1.7, "문장 단위 근거", "'열심히', '성실하게' 같은 문장을 그대로 인용해 보여 줍니다", BAD, 16, 13)
+card(s, 6.9, 3.4, 5.8, 1.7, "고치는 방법", "수치 넣기, 결과 보강, 내가 한 일 중심으로", WARN, 16, 13)
+card(s, 6.9, 5.3, 5.8, 1.5, "출처 표시", "항목마다 근거 가이드(GEN-05 등)", BRAND, 16, 13)
 
 # 6 보완 화면
 s = base("③ 보완 제안 화면", 6, "AI가 다듬은 문장은 검증을 통과해야 채택됩니다. 검증에 실패하면 이유와 함께 빈칸 채우기 틀로 대체합니다. 대괄호는 사용자가 직접 채워야 합니다.")
-pic(s, "crop-revise.png", 0.6, 1.4, w=7.4)
-card(s, 8.3, 1.5, 4.5, 1.7, "AI 제안 / 빈칸 틀", "배지로 생성 방식을 구분하고 실패 이유를 표시", BRAND, 16, 13)
-card(s, 8.3, 3.4, 4.5, 1.7, "지어내지 않는다", "대괄호 [ ]는 직접 채우기. 사실과 다르면 고치라는 경고", BAD, 16, 13)
-card(s, 8.3, 5.3, 4.5, 1.5, "수정 후 재점검", "점수 변화를 기록으로 확인", OK, 16, 13)
+pic(s, "crop-revise.png", 0.6, 1.4, w=6.1)
+card(s, 6.9, 1.5, 5.8, 1.7, "AI 제안 / 빈칸 틀", "배지로 생성 방식을 구분하고 실패 이유를 표시", BRAND, 16, 13)
+card(s, 6.9, 3.4, 5.8, 1.7, "지어내지 않는다", "대괄호 [ ]는 직접 채우기. 사실과 다르면 고치라는 경고", BAD, 16, 13)
+card(s, 6.9, 5.3, 5.8, 1.5, "수정 후 재점검", "점수 변화를 기록으로 확인", OK, 16, 13)
 
 # 7 구조
 s = base("시스템 구조", 7, "http 층에서 검증·제한·보안 헤더를 처리하고 app 층이 업무 흐름을 조립합니다. 분석과 점수는 규칙, 검색은 RAG, LLM은 재작성에만 씁니다.")
@@ -140,9 +160,9 @@ for i, (t, b) in enumerate([("브라우저", "입력·점검·보완"), ("http.m
     box(s, x, 1.5, 2.7, 1.2, WHITE, BRAND)
     text(s, x, 1.6, 2.7, 0.5, t, 17, True, BRAND, PP_ALIGN.CENTER)
     text(s, x, 2.15, 2.7, 0.5, b, 13, False, MUTED, PP_ALIGN.CENTER)
-mods = [("text · profile", "마스킹, 역량·수치·STAR 추출(규칙)", OK), ("rag · kb", "BM25(+임베딩) 검색, 청크 60개", BRAND), ("recommend · review", "추천 점수, 8항목 점검", BRAND), ("revise · llm", "재작성 + 사후 검증, Claude/ChatGPT/Ollama", WARN)]
+mods = [("text · profile", "마스킹, 역량·수치·STAR 추출(규칙)", OK), ("rag · kb", "BM25(+임베딩) 검색, 청크 60개", BRAND), ("recommend·review", "추천 점수, 8항목 점검", BRAND), ("revise · llm", "재작성 + 사후 검증, Claude/ChatGPT/Ollama", WARN)]
 for i, (t, b, c) in enumerate(mods):
-    card(s, 0.6 + i * 3.1, 3.2, 2.95, 2.6, t, b, c, 16, 13)
+    card(s, 0.6 + i * 3.1, 3.2, 2.95, 2.6, t, b, c, 15, 13)
 text(s, 0.6, 6.1, 12, 0.6, "LLM이 없어도 추천·점검은 그대로, 보완은 빈칸 틀로 동작 (NFR-01)", 16, True, BRAND)
 
 # 7-2 순서도
@@ -217,10 +237,16 @@ text(s, 0.6, 5.3, 12, 1.0, "다음 개선: 실제 사용자 평가 반영 · 공
 s = prs.slides.add_slide(BLANK)
 s.background.fill.solid()
 s.background.fill.fore_color.rgb = BRAND
-text(s, 0.9, 2.2, 11.5, 1.0, "감사합니다", 54, True, WHITE)
+text(s, 0.9, 2.0, 11.5, 1.4, "감사합니다", 54, True, WHITE)
 text(s, 0.9, 3.6, 11.5, 1.2, ["근거를 보여 주고, 사실을 지어내지 않는 서류 도우미", "질문 받겠습니다"], 24, False, RGBColor(0xDB, 0xE7, 0xFF))
 text(s, 0.9, 6.2, 11.5, 0.5, "소스·문서: projects/JobMate · 실행: npm start (Node.js 24+)", 14, False, RGBColor(0xDB, 0xE7, 0xFF))
 
-out = ROOT / "docs" / "JobMate_발표자료.pptx"
+import sys
+
+# 출력 경로를 인자로 바꿀 수 있습니다(파일이 PowerPoint에서 열려 있어 덮어쓸 수 없을 때 임시 파일로 먼저 확인하는 용도).
+out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "JobMate_발표자료.pptx"
 prs.save(out)
 print("saved", out, "slides:", len(prs.slides))
+for w in WARNINGS:
+    print("WARN", w)
+print("경고", len(WARNINGS), "건")

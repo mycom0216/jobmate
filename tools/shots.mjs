@@ -45,4 +45,14 @@ try {
   await js("document.getElementById('fix').click()");
   for (let i = 0; i < 90; i++) { await sleep(2000); if (!(await js("document.getElementById('fix').disabled"))) break; } // AI(Ollama)가 느릴 수 있어 최대 3분 대기
   await shot('ui-4-revise.png');
+
+  // 발표자료·보고서용 "잘린 데 없는" 부분 캡처: 목록의 N번째 항목 끝에서 정확히 자릅니다(임의 높이로 자르면 항목이 반쯤 잘려 보임).
+  const clipShot = async (name, topSel, itemSel, n) => {
+    const rect = await js(`(() => { const top = document.querySelector('${topSel}').getBoundingClientRect(); const items = [...document.querySelectorAll('${itemSel}')]; const last = items[Math.min(${n}, items.length) - 1].getBoundingClientRect(); const y = top.top + scrollY; return { x: Math.floor(top.left), y: Math.floor(y), w: Math.ceil(top.width), h: Math.ceil(last.bottom + scrollY - y + 10) }; })()`);
+    const r = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: rect.x, y: rect.y, width: rect.w, height: rect.h, scale: 1 } });
+    writeFileSync(join(out, name), Buffer.from(r.result.data, 'base64')); console.log('saved', name, rect.w + 'x' + rect.h);
+  };
+  await clipShot('crop-review.png', '#p3', '#items .item', 3);
+  await clipShot('crop-revise.png', '#p4', '#sugs .sug', 3);
+  await clipShot('crop-recommend.png', '#p2', '#p2 .hint', 1);
 } finally { try { ws?.close(); } catch { /* 이미 닫힘 */ } proc.kill(); }
