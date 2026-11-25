@@ -264,3 +264,10 @@ test('analyzeDocs: 기간만 가득한 경력 이력서는 성과 문장 0개, �
   const withResult = analyzeDocs({ resume: ['2023.07 ~ 2026.07 (3년) 차량 배달', '재고 오차를 12건에서 3건으로 줄였습니다.'].join('\n'), cover: '' });
   assert.equal(withResult.quantified.length, 1);
 });
+
+test('모의 평가에서 발견한 결함: 빈칸 표시 [지표]가 있어도 정상 AI 제안을 날조로 오인해 거절하지 않는다', () => {
+  const doc = '인스타그램 계정을 운영했습니다.';
+  assert.equal(validateRewrite('인스타그램 계정을 운영해 [지표]를 [이전 값]에서 [이후 값]으로 개선했습니다.', doc, doc), null);
+  // 빈칸 밖에 새 숫자·기술이 있으면 여전히 거절
+  assert.match(validateRewrite('인스타그램 계정을 운영해 팔로워를 40% 늘렸습니다. [지표]', doc, doc), /원문에 없는 숫자/u);
+});

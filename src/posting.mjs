@@ -84,7 +84,11 @@ const bigrams = (s) => new Set(tokens(s).filter((t) => t[0] === 'b' || t[0] === 
 
 // 항목 하나를 서류와 대조합니다. 반환: { text, kind, status, evidence, skills }
 function matchItem(text, kind, docSents, allDocText) {
-  const skills = findSkills(text, ALL_SKILLS).map((s) => s.name);
+  // 같은 별칭을 여러 역량이 공유하면(예: 'sql'은 SQL의 이름이면서 '데이터 기반 의사결정'의 별칭) 공고 항목이 엉뚱한 역량으로
+  // 해석됩니다. 그래서 어떤 역량이 "다른 역량의 이름"과 같은 별칭으로만 잡혔다면 그 역량은 버리고 이름이 일치하는 쪽만 씁니다.
+  const hits = findSkills(text, ALL_SKILLS);
+  const names = new Set(hits.map((s) => s.name.toLowerCase()));
+  const skills = hits.filter((s) => s.matchedAs === s.name.toLowerCase() || !names.has(s.matchedAs)).map((s) => s.name);
   if (skills.length) {
     const found = new Set(findSkills(allDocText, ALL_SKILLS).map((s) => s.name));
     const have = skills.filter((n) => found.has(n));

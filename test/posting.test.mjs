@@ -84,3 +84,12 @@ test('FR-09 API: POST /api/posting 정상 응답과 입력 오류 코드', async
   assert.equal((await post('/api/posting', { userId: uid, submissionId: a.submissionId, posting: '짧음' })).status, 400);
   assert.equal((await post('/api/posting', { userId: uid, submissionId: 'x', posting: POSTING })).status, 400);
 });
+
+test('모의 평가에서 발견한 결함: "SQL 활용 능력" 항목이 SQL이 없는 서류를 엉뚱한 역량(데이터 기반 의사결정)으로 충족 처리하지 않는다', async () => {
+  const sub = await app.analyze('posting-user-4', '마케팅 인턴 6개월. 인스타그램 콘텐츠를 기획하고 광고를 집행했으며 구글 애널리틱스로 성과 지표를 확인했습니다. 엑셀과 포토샵 사용.', '캠페인 성과를 숫자로 개선하는 마케터가 되고 싶습니다. 클릭률 분석 경험이 있습니다.');
+  const r = await app.posting('posting-user-4', sub.submissionId, '마케팅 담당자\n자격 요건\n- SQL 활용 능력\n- GA 등 데이터 분석 툴 활용 능력\n- 콘텐츠 기획 경험');
+  const sql = r.required.find((i) => i.text.includes('SQL'));
+  assert.equal(sql.status, 'missing');
+  assert.deepEqual(sql.skills.map((s) => s.name), ['SQL']);
+  assert.equal(r.required.find((i) => i.text.includes('GA')).skills.find((s) => s.name === 'GA').found, true); // 구글 애널리틱스 = GA
+});

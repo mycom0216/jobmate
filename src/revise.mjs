@@ -46,7 +46,10 @@ const numbersOf = (s) => (String(s).replace(/,/gu, '').match(/\d+(?:\.\d+)?/gu) 
 // 사후 검증(guard): 통과하면 null, 실패하면 이유 문자열을 돌려줍니다.
 //   allowedText: 사용자가 쓴 전체 문서(이 안에 있는 숫자·기술만 허용)
 export function validateRewrite(output, original, allowedText) {
-  const out = String(output ?? '').trim();
+  const raw = String(output ?? '').trim();
+  // [지표], [수치 입력] 같은 "빈칸 표시"는 사용자가 채울 자리일 뿐 주장이 아니므로 숫자·기술명 검사에서 뺍니다.
+  // (빼지 않으면 '[지표]'가 '지표'를 별칭으로 가진 역량으로 오인되어 정상 제안이 거절되는 결함이 있었습니다.)
+  const out = raw.replace(/\[[^\]]*\]/gu, ' ').replace(/\s{2,}/gu, ' ').trim();
   if (out.length < 8) return '결과가 너무 짧음';
   // 원문과 사실상 같으면(공백·쉼표 차이뿐) 보완이 아니므로 거절 → 규칙 기반 틀로 대체
   const squash = (t) => t.replace(/[\s,.，。]/gu, '');
